@@ -14,7 +14,7 @@ Review of `docs/SPECS.md` (Draft v1, November 8, 2026). No code yet.
 6. Recommendations S1–S10 accepted (including adding oil to `assumed_staples`).
 7. **Language:** Config `language`, default English. Traditional dish names keep their original name (for example "Ajiaco") inside English text. No Spanglish.
 8. **Allowed users** = a comma-separated list in env.
-9. **No GCP for the MVP.** Run on this computer first. Local SQLite file, no GCS snapshot, no Secret Manager, no Docker yet. A service account JSON key is used for Sheets and Calendar. `better-sqlite3` with the Linux prebuilt binary.
+9. **No GCP for the MVP.** Run on this computer first. Local SQLite file, no GCS snapshot, no Secret Manager, no Docker yet. Google auth uses Application Default Credentials (gcloud impersonation of the service account locally, no key files). `better-sqlite3` with the Linux prebuilt binary.
 10. Errors: a warning in the channel; details in the logs.
 11. Structured output: native structured outputs (option A). If unsupported with thinking, JSON text + zod (option C).
 12. No daily Claude-call cap. Spend is monitored in the Claude console.

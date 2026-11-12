@@ -23,29 +23,39 @@ The bot logs in as a **service account**, a robot Google account with its own em
 3. Skip "Grant this service account access to project" (no roles needed). Click **Done**.
 4. Copy the service account email. It looks like `mealbot-dev@mealbot-123456.iam.gserviceaccount.com`. You'll paste it in the Sheets and Calendar guides.
 
-## 4. Create a JSON key
+## 4. Impersonate the service account locally (no key files)
 
-1. Click the service account → **Keys** tab → **Add key → Create new key → JSON → Create**.
-2. A `.json` file downloads. It's a password: never commit it or share it.
-3. Move it into the project:
-   ```
-   mkdir -p ~/dev/meal-disc/secrets
-   mv ~/Downloads/mealbot-*.json ~/dev/meal-disc/secrets/google-dev.json
-   chmod 600 ~/dev/meal-disc/secrets/google-dev.json
-   ```
-4. In `.env`:
-   ```
-   GOOGLE_APPLICATION_CREDENTIALS=./secrets/google-dev.json
-   ```
+The code uses Application Default Credentials (ADC). Locally, ADC is your own gcloud login acting as the service account. No key is downloaded.
 
-If key creation is blocked ("Service account key creation is disabled"), your account belongs to a Google Workspace organization with that policy turned on. Use a personal Gmail account for the project, or ask the Workspace admin to allow keys for this project.
+1. Let your user mint tokens for the service account (once per service account):
+   ```
+   gcloud iam service-accounts add-iam-policy-binding <SA email> \
+     --member="user:<your email>" \
+     --role="roles/iam.serviceAccountTokenCreator"
+   ```
+2. Enable the IAM Service Account Credentials API in the service account's project (once):
+   ```
+   gcloud services enable iamcredentials.googleapis.com --project=<project id>
+   ```
+3. Create the local ADC file:
+   ```
+   gcloud auth application-default login --impersonate-service-account=<SA email>
+   ```
+   This writes `~/.config/gcloud/application_default_credentials.json`. Nothing goes in `.env`.
+4. Check it: `npm run check:sheets` (after the Sheets guide).
+
+To switch between dev and prod locally, re-run step 3 with the other service account. The role binding (step 1) can take a minute or two to take effect.
+
+On a GCP VM (later), ADC is the VM's attached service account. The VM needs the `cloud-platform` access scope.
 
 ## 5. Production (later)
 
-Repeat steps 3–4 with `mealbot-prod`, saved as `secrets/google-prod.json`. Use separate accounts so the dev bot can never touch the prod sheet.
+Repeat steps 3–4 with `mealbot-prod`. Use separate accounts so the dev bot can never touch the prod sheet.
 
 ## Checklist
 - [x] Project created
 - [x] Sheets API and Calendar API enabled
 - [x] Service account email copied
-- [ ] Key saved to `secrets/google-dev.json`
+- [x] Token Creator role granted to your user on the service account
+- [x] IAM Service Account Credentials API enabled
+- [x] `gcloud auth application-default login --impersonate-service-account=...` done

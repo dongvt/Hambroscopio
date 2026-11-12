@@ -11,7 +11,7 @@ Setup guides live in `docs/setup/`, one file per tool.
 ## Phase A: Accounts and access (blockers, can run in parallel with slice 1)
 
 - [x] **[you]** Anthropic: create the bot's API key and set a spend limit. See `docs/setup/anthropic.md`.
-- [x] **[you]** Google Cloud: create a project, enable the Sheets and Calendar APIs, create a service account and download its JSON key. See `docs/setup/google-cloud.md`.
+- [x] **[you]** Google Cloud: create a project, enable the Sheets and Calendar APIs, create a service account and set up impersonation (ADC). See `docs/setup/google-cloud.md`.
 - [x] **[you]** Google Sheets: create the `dev_` spreadsheet with all five tabs and share it with the service account. See `docs/setup/google-sheets.md`.
 - [x] **[you]** Google Calendar: create the dev calendar and share it with the service account. See `docs/setup/google-calendar.md`.
 - [x] **[you]** Discord: create the dev bot, invite it to the server, create the hidden dev channel, collect the IDs. See `docs/setup/discord.md`.
@@ -34,17 +34,18 @@ Setup guides live in `docs/setup/`, one file per tool.
 
 ## Slice 2: Sheets client
 
-- [ ] Install `googleapis`. Auth with the service account key file (`GOOGLE_APPLICATION_CREDENTIALS`).
-- [ ] `SheetsClient` interface (PLAN.md section 6.1).
-- [ ] `GoogleSheetsClient`: read Config, Inventory, Liked, Banned, Cooked.
-- [ ] Writes: update inventory quantities (batch), append Cooked, update the Cooked rating cell, append Liked, append Banned.
-- [ ] `FakeSheetsClient` (in memory).
-- [ ] `config/sheetConfig.ts`: Config tab → typed settings, with defaults for missing or invalid keys (warn).
-- [ ] DRY_RUN decorator: log writes instead of running them, and return plausible results.
-- [ ] Log every call (operation, range, duration, result).
-- [ ] Tests with the fake: config parsing and defaults, inventory parsing (blank or bad quantity → 0 + warning).
-- [ ] Manual check: a small script reads the dev sheet and prints the parsed data.
-- [ ] Commit.
+- [x] Install `@googleapis/sheets` + `google-auth-library`. Auth with Application Default Credentials (gcloud impersonation, no key files).
+- [x] `SheetsClient` interface (PLAN.md section 6.1).
+- [x] `GoogleSheetsClient`: read Config, Inventory, Liked, Banned, Cooked.
+- [x] Writes: update inventory quantities (batch), append Cooked, update the Cooked rating cell, append Liked, append Banned.
+- [x] `FakeSheetsClient` (in memory).
+- [x] `config/sheetConfig.ts`: Config tab → typed settings, with defaults for missing or invalid keys (warn).
+- [x] DRY_RUN decorator: log writes instead of running them, and return plausible results.
+- [x] Log every call (operation, range, duration, result).
+- [x] Tests with the fake: config parsing and defaults, inventory parsing (blank or bad quantity → 0 + warning).
+- [x] Manual check script: `npm run check:sheets` reads the dev sheet and prints the parsed data.
+- [x] **[you]** Set up ADC impersonation (`docs/setup/google-cloud.md` step 4) and run `npm run check:sheets` successfully.
+- [x] **[you]** Commit.
 
 ## Slice 3: Planner
 

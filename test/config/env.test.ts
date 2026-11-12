@@ -10,7 +10,6 @@ const valid = {
   DISCORD_CHANNEL_ID: "323456789012345678",
   ALLOWED_USER_IDS: "423456789012345678, 523456789012345678",
   ANTHROPIC_API_KEY: "sk-ant-secret",
-  GOOGLE_APPLICATION_CREDENTIALS: "./secrets/google-dev.json",
   SHEETS_SPREADSHEET_ID: "sheet123",
   CALENDAR_ID: "cal@group.calendar.google.com",
 };

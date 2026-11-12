@@ -36,7 +36,6 @@ const envSchema = z.object({
   ANTHROPIC_MODEL: required.default("claude-haiku-5-5"),
   ANTHROPIC_EFFORT: z.enum(["none", "low", "medium", "high"]).default("medium"),
 
-  GOOGLE_APPLICATION_CREDENTIALS: required,
   SHEETS_SPREADSHEET_ID: required,
   CALENDAR_ID: required,
 });
@@ -59,7 +58,6 @@ export interface Env {
     effort: "none" | "low" | "medium" | "high";
   };
   google: {
-    credentialsPath: string;
     spreadsheetId: string;
     calendarId: string;
   };
@@ -102,7 +100,6 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
       effort: e.ANTHROPIC_EFFORT,
     },
     google: {
-      credentialsPath: e.GOOGLE_APPLICATION_CREDENTIALS,
       spreadsheetId: e.SHEETS_SPREADSHEET_ID,
       calendarId: e.CALENDAR_ID,
     },

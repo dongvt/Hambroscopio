@@ -9,10 +9,10 @@ export const REDACT_PATHS = [
   ...SECRET_KEYS,
   ...SECRET_KEYS.map((k) => `*.${k}`),
   ...SECRET_KEYS.map((k) => `*.*.${k}`),
-  "headers.authorization",
-  "*.headers.authorization",
-  "*.headers.Authorization",
-  "*.*.headers.authorization",
+  ...["headers", "*.headers", "*.*.headers", "*.*.*.headers"].flatMap((h) => [
+    `${h}.authorization`,
+    `${h}.Authorization`,
+  ]),
 ];
 
 export interface LoggerOptions {

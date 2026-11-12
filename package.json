@@ -11,10 +11,13 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "check:sheets": "tsx scripts/check-sheets.ts"
   },
   "type": "module",
   "dependencies": {
+    "@googleapis/sheets": "^18.1.2",
+    "google-auth-library": "^11.3.4",
     "pino": "^10.4.0",
     "pino-pretty": "^13.2.0",
     "zod": "^4.6.7"
