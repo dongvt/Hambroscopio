@@ -49,26 +49,24 @@ Setup guides live in `docs/setup/`, one file per tool.
 
 ## Slice 3: Planner
 
-- [ ] Install `@anthropic-ai/sdk` and `zod`.
-- [ ] Check in the Anthropic docs: the Haiku 5.5 model ID, the thinking/effort parameter, and whether native structured outputs (JSON schema) work with thinking. Record the result in `docs/DECISIONS.md`.
-- [ ] `LlmClient` interface. `AnthropicLlmClient` uses native structured outputs (option A). If that isn't supported with thinking, ask for JSON in text and parse it with zod (option C).
-- [ ] Log model, thinking setting, tokens and latency. Log the full prompt and response at debug level.
-- [ ] `planner/schema.ts`: zod output schema.
-- [ ] `planner/prompt.ts`: the rules from spec section 7. Language: titles and recipes in the Config `language` (default English). Traditional dish names stay in their original name (for example "Ajiaco").
-- [ ] `planner/validate.ts`: names exist in inventory, units match, staples allowed, servings, no banned titles, no duplicates in the week, ledger replay (lunch reserves option 1 only).
-- [ ] `planner/planner.ts`: call → validate → retry up to 2 times with the errors → on final failure, throw an error whose message asks the user to update the inventory and run `/plan`.
-- [ ] `FixtureLlmClient` + a recording helper. Record one real response from the dev sheet.
-- [ ] Tests: ledger, each validation rule, retry flow, fixture replay.
-- [ ] Commit.
+- [x] Install `@anthropic-ai/sdk` and `zod`.
+- [x] Check in the Anthropic docs: the Haiku 5.5 model ID, the thinking/effort parameter, and whether native structured outputs (JSON schema) work with thinking. Record the result in `docs/DECISIONS.md`.
+- [x] `LlmClient` interface. `AnthropicLlmClient` uses native structured outputs (option A). If that isn't supported with thinking, ask for JSON in text and parse it with zod (option C).
+- [x] Log model, thinking setting, tokens and latency. Log the full prompt and response at debug level.
+- [x] `planner/schema.ts`: zod output schema.
+- [x] `planner/prompt.ts`: the rules from spec section 7. Language: titles and recipes in the Config `language` (default English). Traditional dish names stay in their original name (for example "Ajiaco").
+- [x] `planner/validate.ts`: names exist in inventory, units match, staples allowed, servings, no banned titles, no duplicates in the week, ledger replay (lunch reserves option 1 only).
+- [x] `planner/planner.ts`: call → validate → retry up to 2 times with the errors → on final failure, throw an error whose message asks the user to update the inventory and run `/plan`.
+- [x] `FixtureLlmClient` + a recording helper. Record one real response from the dev sheet.
+- [x] Tests: ledger, each validation rule, retry flow, fixture replay.
 
 ## Slice 4: SQLite state
 
-- [ ] Install `better-sqlite3` (Linux x64 prebuilt binary).
-- [ ] Schema + migrations: `weeks`, `days`, `meals`, `kv`, plus `cooked_sheet_row` on meals.
-- [ ] Repositories for weeks, days, meals, kv.
-- [ ] `domain/mealState.ts`: pure state machine (planned → cooked → rated, plus needs_attention).
-- [ ] Tests: state machine transitions, repo round trips, week status idempotency.
-- [ ] Commit.
+- [x] Install `better-sqlite3` (Linux x64 prebuilt binary).
+- [x] Schema + migrations: `weeks`, `days`, `meals`, `kv`, plus `cooked_sheet_row` on meals.
+- [x] Repositories for weeks, days, meals, kv.
+- [x] `domain/mealState.ts`: pure state machine (planned → cooked → rated, plus needs_attention).
+- [x] Tests: state machine transitions, repo round trips, week status idempotency.
 - (No GCS snapshot in the MVP. The SQLite file lives on local disk.)
 
 ## Slice 5: Calendar client
@@ -80,7 +78,6 @@ Setup guides live in `docs/setup/`, one file per tool.
 - [ ] DRY_RUN decorator (returns fake event IDs).
 - [ ] Tests: render output, fake client behavior.
 - [ ] Manual check: create and patch one event in the dev calendar.
-- [ ] Commit.
 
 ## Slice 6: Weekly flow and Discord posting
 
@@ -93,7 +90,6 @@ Setup guides live in `docs/setup/`, one file per tool.
 - [ ] On error: post a warning in the channel with the correlation ID, and log the stack.
 - [ ] Tests: weekly flow with all fakes; skips a week already `complete`.
 - [ ] Manual check: `/plan` in the dev channel creates the full week and the calendar events.
-- [ ] Commit.
 
 ## Slice 7: Reactions, cook, rating
 
@@ -105,7 +101,6 @@ Setup guides live in `docs/setup/`, one file per tool.
 - [ ] On failure: needs_attention + warning message. No automatic recovery (fix SQLite manually or run `/plan`).
 - [ ] Tests: each guardrail, debounce, lock, cook flow, deduction, rating.
 - [ ] Manual check in dev: cook breakfast, cook a lunch option, rate both.
-- [ ] Commit.
 
 ## Slice 8: Reload
 
@@ -115,7 +110,6 @@ Setup guides live in `docs/setup/`, one file per tool.
 - [ ] Global reload rate limit (10 per hour).
 - [ ] Tests: which meals are selected (for example Wednesday 15:00 → Wednesday dinner onward), cooked meals untouched, missing artifact error, rate limit.
 - [ ] Manual check in dev.
-- [ ] Commit.
 
 ## Slice 9: Scheduler
 
@@ -123,7 +117,6 @@ Setup guides live in `docs/setup/`, one file per tool.
 - [ ] Catch-up on startup (setting, default on).
 - [ ] Interrupted week (status planning or posting) → log + channel warning, wait for `/plan`.
 - [ ] Tests with a fake clock: due/not due, catch-up, skip complete, interrupted.
-- [ ] Commit.
 
 ## Slice 10: Run on this computer for the first week
 
