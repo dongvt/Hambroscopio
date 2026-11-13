@@ -13,7 +13,7 @@ Run `nvm use` first (Node 26, see `.nvmrc`).
 - `npm run dev`: run with tsx watch (reads `.env`)
 - `npm run build && npm start`: compiled run
 
-A slice is done when test, typecheck, lint and format:check all pass, followed by a commit.
+A slice is done when test, typecheck, lint and format:check all pass, don't do anys commit.
 
 ## Layout
 

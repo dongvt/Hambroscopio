@@ -15,8 +15,8 @@ export const TABS = {
     title: "Cooked",
     headers: ["date", "week_id", "slot", "title", "rating", "inventory_changes"],
   },
-  liked: { title: "Liked", headers: ["title", "date"] },
-  banned: { title: "Banned", headers: ["title", "date"] },
+  liked: { title: "Liked", headers: ["title", "date_added"] },
+  banned: { title: "Banned", headers: ["title", "date_added"] },
   config: { title: "Config", headers: ["key", "value"] },
 } as const;
 
