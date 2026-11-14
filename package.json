@@ -12,11 +12,13 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check:sheets": "tsx scripts/check-sheets.ts"
+    "check:sheets": "tsx scripts/check-sheets.ts",
+    "check:calendar": "tsx scripts/check-calendar.ts"
   },
   "type": "module",
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
+    "@googleapis/calendar": "^20.2.0",
     "@googleapis/sheets": "^18.1.2",
     "better-sqlite3": "^13.1.1",
     "google-auth-library": "^11.3.4",

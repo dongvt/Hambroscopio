@@ -71,13 +71,13 @@ Setup guides live in `docs/setup/`, one file per tool.
 
 ## Slice 5: Calendar client
 
-- [ ] `CalendarClient` interface (PLAN.md section 6.2): create, patch, get, find by meal key.
-- [ ] `GoogleCalendarClient` using the same service account.
-- [ ] `FakeCalendarClient`.
-- [ ] `domain/render.ts`: event title (single title, " | " for lunch, ✅ prefix), description (full recipes, AI footer, status line), trimmed version after a pick.
-- [ ] DRY_RUN decorator (returns fake event IDs).
-- [ ] Tests: render output, fake client behavior.
-- [ ] Manual check: create and patch one event in the dev calendar.
+- [x] `CalendarClient` interface (PLAN.md section 6.2): create, patch, get, find by meal key.
+- [x] `GoogleCalendarClient` using the same service account.
+- [x] `FakeCalendarClient`.
+- [x] `domain/render.ts`: event title (single title, " | " for lunch, ✅ prefix), description (full recipes, AI footer, status line), trimmed version after a pick.
+- [x] DRY_RUN decorator (returns fake event IDs).
+- [x] Tests: render output, fake client behavior.
+- [x] Manual check script: create and patch one event in the dev calendar via `npm run check:calendar`.
 
 ## Slice 6: Weekly flow and Discord posting
 
