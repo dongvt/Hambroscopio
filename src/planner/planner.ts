@@ -2,6 +2,7 @@ import { AppError } from "../lib/errors.js";
 import { buildPlannerPrompt } from "./prompt.js";
 import { validatePlannerOutput, type PlannerInput } from "./validate.js";
 import type { LlmClient } from "../clients/llm/LlmClient.js";
+import type { LlmEffort } from "../clients/llm/LlmClient.js";
 
 export { type PlannerInput } from "./validate.js";
 
@@ -27,7 +28,10 @@ export class PlanningFailed extends AppError {
 }
 
 export class Planner {
-  constructor(private readonly llmClient: LlmClient) {}
+  constructor(
+    private readonly llmClient: LlmClient,
+    private readonly effort: LlmEffort = "medium",
+  ) {}
 
   async plan(input: PlannerInput): Promise<PlannerResult> {
     let prompt = buildPlannerPrompt(input);
@@ -39,7 +43,7 @@ export class Planner {
         messages: prompt.messages,
         jsonSchema: {},
         maxTokens: 15000,
-        effort: "medium",
+        effort: this.effort,
         purpose: input.reserveLunchFirstOption ? "plan_week" : "reload_meal",
       });
 

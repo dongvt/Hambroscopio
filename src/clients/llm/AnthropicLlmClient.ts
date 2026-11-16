@@ -31,7 +31,7 @@ export class AnthropicLlmClient implements LlmClient {
   constructor(options: AnthropicLlmClientOptions = {}) {
     const apiKey = options.apiKey ?? process.env.ANTHROPIC_API_KEY ?? "";
     this.client = new Anthropic({ apiKey });
-    this.model = options.model ?? process.env.ANTHROPIC_MODEL ?? "claude-haiku-5-5";
+    this.model = options.model ?? process.env.ANTHROPIC_MODEL ?? "";
     this.defaultEffort = options.effort ?? "medium";
     this.logger = options.logger ?? createLogger({ level: "debug", pretty: false });
   }
@@ -54,9 +54,11 @@ export class AnthropicLlmClient implements LlmClient {
         effort === "none"
           ? undefined
           : {
-              type: "enabled",
-              budget_tokens: effort === "low" ? 1024 : effort === "medium" ? 4096 : 8192,
+              type: "adaptive",
             },
+      output_config: {
+        effort: effort === "none" ? "low" : effort,
+      }
     });
 
     const textBlock = Array.isArray(response.content)

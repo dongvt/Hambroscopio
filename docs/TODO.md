@@ -81,14 +81,14 @@ Setup guides live in `docs/setup/`, one file per tool.
 
 ## Slice 6: Weekly flow and Discord posting
 
-- [ ] Install `discord.js`. Gateway with intents guilds, guild messages, guild message reactions, and partials message, reaction, user, channel.
-- [ ] `DiscordGateway` interface (PLAN.md section 6.3), `DiscordJsGateway`, `FakeDiscordGateway`.
-- [ ] `domain/emojis.ts`: all emoji constants.
-- [ ] Render meal messages: titles + status line (Planned, Cooked, Cooked and liked, Cooked and disliked, Updating..., Needs attention).
-- [ ] `flows/weeklyPlan.ts`: read sheet → plan → save → intro message + 🔄 → 7 threads ("Mon 11/09", 1-week auto-archive) → meal messages + reactions → calendar events → week `complete`.
-- [ ] `/plan` slash command (allowed users only, `deferReply`, `week` option in dev). Register it in the dev guild.
-- [ ] On error: post a warning in the channel with the correlation ID, and log the stack.
-- [ ] Tests: weekly flow with all fakes; skips a week already `complete`.
+- [x] Install `discord.js`. Gateway with intents guilds, guild messages, guild message reactions, and partials message, reaction, user, channel.
+- [x] `DiscordGateway` interface (PLAN.md section 6.3), `DiscordJsGateway`, `FakeDiscordGateway`.
+- [x] `domain/emojis.ts`: all emoji constants.
+- [x] Render meal messages: titles + status line (Planned, Cooked, Cooked and liked, Cooked and disliked, Updating..., Needs attention).
+- [x] `flows/weeklyPlan.ts`: read sheet → plan → save → intro message + 🔄 → 7 threads ("Mon 11/09", 1-week auto-archive) → meal messages + reactions → calendar events → week `complete`.
+- [x] `/plan` slash command (allowed users only, `deferReply`, `week` option in dev). Register it in the dev guild on startup.
+- [x] On error: post a warning in the channel with the correlation ID, and log the stack.
+- [x] Tests: weekly flow with all fakes; skips a week already `complete`.
 - [ ] Manual check: `/plan` in the dev channel creates the full week and the calendar events.
 
 ## Slice 7: Reactions, cook, rating

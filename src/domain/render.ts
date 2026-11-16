@@ -1,3 +1,7 @@
+import type { MealStatus } from "./mealState.js";
+import type { Slot } from "./types.js";
+import { optionEmoji } from "./emojis.js";
+
 export interface RenderMealEventInput {
   title: string;
   options: string[];
@@ -5,6 +9,33 @@ export interface RenderMealEventInput {
   statusLine: string;
   recipeText?: string;
   aiFooter?: string;
+}
+
+export interface RenderMealMessageInput {
+  slot: Slot;
+  options: Array<{ title: string }>;
+  status: MealStatus | "updating";
+  chosenIndex?: number;
+}
+
+const STATUS_TEXT: Record<MealStatus | "updating", string> = {
+  planned: "Planned",
+  cooked: "Cooked",
+  liked: "Cooked and liked",
+  disliked: "Cooked and disliked",
+  updating: "Updating...",
+  needs_attention: "Needs attention",
+};
+
+export function renderMealMessage(input: RenderMealMessageInput): string {
+  const isPlanned = input.status === "planned";
+  const titles =
+    isPlanned && input.slot === "lunch" && input.options.length > 1
+      ? input.options
+          .map((option, index) => `${optionEmoji(index) ?? `${index + 1}.`} ${option.title}`)
+          .join("\n")
+      : (input.options[input.chosenIndex ?? 0]?.title ?? input.options[0]?.title ?? "Meal");
+  return `${titles}\nStatus: ${STATUS_TEXT[input.status]}`;
 }
 
 export function renderMealSummary(input: RenderMealEventInput): string {

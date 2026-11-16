@@ -5,11 +5,29 @@ import { FakeCalendarClient } from "../../../src/clients/calendar/FakeCalendarCl
 import type { Logger } from "../../../src/lib/logger.js";
 import {
   renderMealDescription,
+  renderMealMessage,
   renderMealSummary,
   renderTrimmedDescription,
 } from "../../../src/domain/render.js";
 
 describe("calendar render", () => {
+  it("renders planned choices and the selected cooked choice with status text", () => {
+    const planned = renderMealMessage({
+      slot: "lunch",
+      options: [{ title: "Chicken Bowl" }, { title: "Bean Bowl" }, { title: "Taco Salad" }],
+      status: "planned",
+    });
+    expect(planned).toBe("1️⃣ Chicken Bowl\n2️⃣ Bean Bowl\n3️⃣ Taco Salad\nStatus: Planned");
+
+    const cooked = renderMealMessage({
+      slot: "lunch",
+      options: [{ title: "Chicken Bowl" }, { title: "Bean Bowl" }, { title: "Taco Salad" }],
+      chosenIndex: 1,
+      status: "cooked",
+    });
+    expect(cooked).toBe("Bean Bowl\nStatus: Cooked");
+  });
+
   it("formats lunch summaries and descriptions", () => {
     const summary = renderMealSummary({
       title: "Lunch",

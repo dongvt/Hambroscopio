@@ -23,7 +23,7 @@ export interface LoggerOptions {
 export function createLogger(options: LoggerOptions, destination?: DestinationStream): Logger {
   const config: pino.LoggerOptions = {
     level: options.level,
-    base: { app: "mealbot" },
+    base: { app: "hambroscopio" },
     redact: { paths: REDACT_PATHS, censor: "[REDACTED]" },
     mixin() {
       const correlationId = currentCorrelationId();
