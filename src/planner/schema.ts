@@ -25,7 +25,19 @@ export const plannerOutputSchema = z.object({
   meals: z.array(plannedMealSchema).min(1),
 });
 
+export const plannerResponseSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("ok"),
+    meals: plannerOutputSchema.shape.meals,
+  }),
+  z.object({
+    status: z.literal("error"),
+    reason: z.string().trim().min(1),
+  }),
+]);
+
 export type Ingredient = z.infer<typeof ingredientSchema>;
 export type MealOption = z.infer<typeof optionSchema>;
 export type PlannedMeal = z.infer<typeof plannedMealSchema>;
 export type PlannerOutput = z.infer<typeof plannerOutputSchema>;
+export type PlannerResponse = z.infer<typeof plannerResponseSchema>;

@@ -37,9 +37,17 @@ export class FixtureLlmClient implements LlmClient {
     }
 
     const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+    let json: unknown;
+    let parseError: string | undefined;
+    try {
+      json = typeof payload === "string" ? JSON.parse(payload) : payload;
+    } catch (error) {
+      parseError = error instanceof Error ? error.message : String(error);
+    }
     const response: LlmResponse = {
       text,
-      json: typeof payload === "string" ? JSON.parse(payload) : payload,
+      json,
+      parseError,
       model: "fixture-model",
       usage: { inputTokens: 0, outputTokens: 0 },
       latencyMs: 0,

@@ -36,8 +36,11 @@ Rules:
 - Never suggest a banned title. No duplicate title may appear within the same planned week. Favor variety.
 - Keep titles and recipe text in ${language}. Traditional dish names stay in their original name when appropriate.
 - Family-friendly meals for ${settings.servings} servings.
-- Each response must be valid JSON that matches the requested schema.
+- Return either a successful plan or an explicit error response matching the requested schema.
 - Return only JSON in the final answer; no markdown fences, no commentary.
+- For a successful plan, every option must contain all fields: title (string), servings (integer), time_minutes (integer), ingredients_used (array of objects), steps (array of strings), notes (array of strings).
+- Every ingredients_used item must be an object with name (exact inventory row name), quantity (positive number), and unit (exact inventory row unit). Never use ingredient strings.
+- Use an empty notes array when there are no notes. Do not omit any required field.
 
 If there are previous validation errors, fix them and keep the rest of the plan valid.`;
 
@@ -75,8 +78,10 @@ ${meals}
 
 Rules to apply in the output:
 - Use only names and units from the Inventory rows above.
-- Each meal must include ${input.reserveLunchFirstOption ? "three lunch options when lunch is planned; reserve only the first lunch option in the ledger" : "the required options"}.
-- Keep JSON strictly valid and return a top-level object with a single "meals" array.
+- Each meal must include exactly the configured number of options; ${input.reserveLunchFirstOption ? "reserve only the first lunch option in the inventory ledger" : "do not reserve inventory for other planned meals"}.
+- Return exactly one JSON object. For a plan use {"status":"ok","meals":[...]}. If no valid plan can be made, use {"status":"error","reason":"..."} and explain the limiting constraint. Never return both forms at once.
+- A success meal is {"date":"YYYY-MM-DD","slot":"breakfast|lunch|dinner","options":[...]}. Every option includes title, servings, time_minutes, ingredients_used, steps, and notes. Every ingredients_used entry is {"name":"EXACT INVENTORY ROW NAME","quantity":1,"unit":"EXACT ROW UNIT"}. The placeholder names here describe the shape only; replace them with actual inventory values.
+- Before returning status "error", try alternatives that use the available inventory. If no complete feasible plan exists, identify the ingredient/quantity or other constraint that prevents it.
 
 ${input.previousErrors && input.previousErrors.length > 0 ? `Previous validation errors:\n${input.previousErrors.map((error) => `- ${error}`).join("\n")}` : ""}`;
 

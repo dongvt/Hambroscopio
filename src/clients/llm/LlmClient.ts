@@ -24,6 +24,7 @@ export interface LlmUsage {
 export interface LlmResponse {
   text: string;
   json: unknown;
+  parseError?: string;
   model: string;
   usage: LlmUsage;
   latencyMs: number;

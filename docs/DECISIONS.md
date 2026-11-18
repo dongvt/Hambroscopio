@@ -12,3 +12,13 @@
 - The planner keeps all validation in code before accepting a response.
 - It retries up to two times with the previous validation errors appended to the prompt.
 - If it still cannot build a valid plan, it throws a planning failure that asks the family to update the inventory and rerun `/plan`.
+
+## Debugging rejected plans
+
+The ephemeral `/plan` response lists the validation issues from each model attempt. The issue categories distinguish inventory feasibility (`inventory_feasibility`), missing inventory names, unit mismatches, schema/JSON errors, duplicate or banned titles, and meal/option coverage problems.
+
+For detailed traces, set `LOG_LEVEL=debug` in `.env`, restart the bot, and run `/plan` again. The local bot logs include the prompt sent on each attempt and the model response, plus token usage, latency, and validation issues. Look for `planner response rejected by validation`; a successful attempt logs `planner accepted response`. Keep debug logs local: they include inventory and recipe text.
+
+The opt-in live check is `npm run check:planner`. It requires `APP_ENV=dev`, reads the configured dev sheet, and makes up to three real Anthropic requests using `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, and `ANTHROPIC_EFFORT`. It does not write to Sheets, Discord, or Calendar.
+
+On 2026-11-17, the first live run with `claude-haiku-5-5` at `medium` effort failed validation because the prompt did not specify the nested recipe fields clearly enough. After adding an explicit response contract, the same live check passed with 21 meals and 35 options. This was an output-format/prompt issue, not evidence that the configured model cannot plan.

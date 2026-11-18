@@ -13,7 +13,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:sheets": "tsx scripts/check-sheets.ts",
-    "check:calendar": "tsx scripts/check-calendar.ts"
+    "check:calendar": "tsx scripts/check-calendar.ts",
+    "check:planner": "tsx scripts/check-planner.ts"
   },
   "type": "module",
   "dependencies": {

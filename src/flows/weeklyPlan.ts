@@ -109,7 +109,15 @@ export async function runWeeklyPlan(
 
     if (!hasCompleteSavedPlan) {
       saveWeek(deps, existing, targetWeekId, "planning");
-      const planned = await createPlan(deps, settings, targetWeekId, expectedMeals);
+      const planned = await deps.planner.plan(
+        await buildWeeklyPlannerInput(
+          deps.sheets,
+          settings,
+          targetWeekId,
+          expectedMeals,
+          deps.logger,
+        ),
+      );
       assertPlanComplete(planned, expectedMeals);
       const now = deps.clock.now().toString();
       meals = planned.meals.map((meal) => ({
@@ -198,21 +206,22 @@ export async function runWeeklyPlan(
   }
 }
 
-async function createPlan(
-  deps: WeeklyPlanDeps,
+export async function buildWeeklyPlannerInput(
+  sheets: SheetsClient,
   settings: AppSettings,
   weekId: WeekId,
   meals: PlannerInput["meals"],
-): Promise<PlannerResult> {
+  logger: Logger,
+): Promise<PlannerInput> {
   const [inventoryRows, bannedRows, likedRows, cookedRows] = await Promise.all([
-    deps.sheets.readInventory(),
-    deps.sheets.readBanned(),
-    deps.sheets.readLiked(),
-    deps.sheets.readCooked(),
+    sheets.readInventory(),
+    sheets.readBanned(),
+    sheets.readLiked(),
+    sheets.readCooked(),
   ]);
   const inventory = inventoryRows.flatMap((row) => {
     if (row.quantity === null) {
-      deps.logger.warn(
+      logger.warn(
         { rowNumber: row.rowNumber, name: row.name },
         "invalid inventory quantity ignored",
       );
@@ -226,7 +235,7 @@ async function createPlan(
     .filter((row) => row.date >= recentlyCookedStart && row.date < weekId)
     .map((row) => row.title);
 
-  return deps.planner.plan({
+  return {
     settings,
     inventory,
     banned: bannedRows.map((row) => row.title),
@@ -235,7 +244,7 @@ async function createPlan(
     existingWeekTitles: [],
     meals,
     reserveLunchFirstOption: true,
-  });
+  };
 }
 
 function assertPlanComplete(result: PlannerResult, expected: PlannerInput["meals"]): void {

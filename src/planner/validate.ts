@@ -43,7 +43,28 @@ export function validatePlannerOutput(output: unknown, input: PlannerInput): str
   const issues: string[] = [];
   const parsed = plannerOutputSchema.safeParse(output);
   if (!parsed.success) {
-    return parsed.error.issues.map((issue) => `JSON schema issue: ${issue.message}`);
+    return formatZodIssues(parsed.error.issues);
+  }
+
+  const expectedMeals = new Map(input.meals.map((meal) => [`${meal.date}:${meal.slot}`, meal]));
+  const returnedMeals = new Map<string, number>();
+  for (const meal of parsed.data.meals) {
+    const key = `${meal.date}:${meal.slot}`;
+    returnedMeals.set(key, (returnedMeals.get(key) ?? 0) + 1);
+    const expected = expectedMeals.get(key);
+    if (!expected) {
+      issues.push(`Unexpected meal ${meal.date} ${meal.slot}.`);
+    } else if (meal.options.length !== expected.options) {
+      issues.push(
+        `Meal ${meal.date} ${meal.slot} returned ${meal.options.length} option(s), expected ${expected.options}.`,
+      );
+    }
+  }
+  for (const [key, count] of returnedMeals) {
+    if (count > 1) issues.push(`Meal ${key.replace(":", " ")} was returned ${count} times.`);
+  }
+  for (const key of expectedMeals.keys()) {
+    if (!returnedMeals.has(key)) issues.push(`Missing meal ${key.replace(":", " ")}.`);
   }
 
   const inventoryIndex = new Map<string, InventoryItem>();
@@ -154,6 +175,17 @@ export function validatePlannerOutput(output: unknown, input: PlannerInput): str
   }
 
   return [...new Set(issues)];
+}
+
+export function formatZodIssues(issues: Array<{ path: PropertyKey[]; message: string }>): string[] {
+  return issues.map((issue) => {
+    const path = issue.path.reduce<string>(
+      (current, segment) =>
+        typeof segment === "number" ? `${current}[${segment}]` : `${current}.${String(segment)}`,
+      "$",
+    );
+    return `${path}: ${issue.message}`;
+  });
 }
 
 export function validateMealPlan(output: unknown, input: PlannerInput): string[] {

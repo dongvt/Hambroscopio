@@ -52,6 +52,7 @@ async function main(): Promise<void> {
         logger,
       }),
       env.anthropic.effort,
+      logger,
     ),
     calendar,
     discord,

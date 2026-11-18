@@ -58,14 +58,24 @@ export class AnthropicLlmClient implements LlmClient {
             },
       output_config: {
         effort: effort === "none" ? "low" : effort,
-      }
+      },
     });
 
     const textBlock = Array.isArray(response.content)
       ? response.content.find((part) => part.type === "text")
       : null;
     const text = textBlock && "text" in textBlock ? String(textBlock.text) : "";
-    const parsed = parseJsonBlock(text);
+    let parsed: unknown;
+    let parseError: string | undefined;
+    try {
+      parsed = parseJsonBlock(text);
+    } catch (error) {
+      parseError = error instanceof Error ? error.message : String(error);
+      this.logger.debug(
+        { purpose: req.purpose, model: this.model, text, parseError },
+        "Anthropic response was not valid JSON",
+      );
+    }
 
     const latencyMs = Date.now() - started;
     const usage = {
@@ -83,13 +93,23 @@ export class AnthropicLlmClient implements LlmClient {
     };
 
     this.logger.debug(
-      { purpose: req.purpose, model: this.model, effort, latencyMs, usage, text, json: parsed },
+      {
+        purpose: req.purpose,
+        model: this.model,
+        effort,
+        latencyMs,
+        usage,
+        text,
+        json: parsed,
+        parseError,
+      },
       "Anthropic planner response",
     );
 
     return {
       text,
       json: parsed,
+      parseError,
       model: this.model,
       usage,
       latencyMs,

@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { FixtureLlmClient } from "../../src/clients/llm/FixtureLlmClient.js";
 import type { LlmClient, LlmGenerateRequest } from "../../src/clients/llm/LlmClient.js";
 import { defaultSettings } from "../../src/config/sheetConfig.js";
-import { Planner, type PlannerResult } from "../../src/planner/planner.js";
+import { Planner, PlanningFailed, type PlannerResult } from "../../src/planner/planner.js";
+import { buildPlannerPrompt } from "../../src/planner/prompt.js";
 import { validatePlannerOutput } from "../../src/planner/validate.js";
 
 const baseInput = {
@@ -90,7 +91,18 @@ const validOutput: PlannerResult = {
   ],
 };
 
+const validModelResponse = { status: "ok", meals: validOutput.meals } as const;
+
 describe("planner validation", () => {
+  it("explains the required recipe fields and explicit error response", () => {
+    const prompt = buildPlannerPrompt(baseInput);
+
+    expect(prompt.messages[0]?.content).toContain('"status":"ok","meals"');
+    expect(prompt.messages[0]?.content).toContain('"status":"error","reason"');
+    expect(prompt.messages[0]?.content).toContain("ingredients_used");
+    expect(prompt.system).toContain("Never use ingredient strings");
+  });
+
   it("accepts a valid plan and rejects banned or duplicate rules", () => {
     expect(validatePlannerOutput(validOutput, baseInput)).toEqual([]);
 
@@ -117,50 +129,59 @@ describe("planner validation", () => {
       validatePlannerOutput(missing, baseInput).some((issue) => issue.includes("not in inventory")),
     ).toBe(true);
   });
+
+  it("reports missing meals and incorrect configured option counts", () => {
+    const incomplete = { meals: [validOutput.meals[0]] };
+    const issues = validatePlannerOutput(incomplete, baseInput);
+    expect(issues).toContain("Missing meal 2026-11-10 dinner.");
+
+    const tooFewLunchOptions = structuredClone(validOutput);
+    tooFewLunchOptions.meals[0]!.options.pop();
+    expect(validatePlannerOutput(tooFewLunchOptions, baseInput)).toContain(
+      "Meal 2026-11-09 lunch returned 2 option(s), expected 3.",
+    );
+  });
+
+  it("shows the JSON path for a missing field", () => {
+    const malformed: unknown = JSON.parse(JSON.stringify(validOutput));
+    const object = malformed as {
+      meals: Array<{ options: Array<Record<string, unknown>> }>;
+    };
+    delete object.meals[0]!.options[0]!.servings;
+
+    expect(validatePlannerOutput(malformed, baseInput)).toContain(
+      "$.meals[0].options[0].servings: Invalid input: expected number, received undefined",
+    );
+  });
 });
 
 describe("planner retries", () => {
   it("keeps retrying until the model produces a valid result", async () => {
-    const responses = [
-      {
-        text: JSON.stringify({
-          meals: [
+    const invalidModelResponse = {
+      status: "ok",
+      meals: [
+        {
+          date: "2026-11-09",
+          slot: "lunch",
+          options: [
             {
-              date: "2026-11-09",
-              slot: "lunch",
-              options: [
-                {
-                  title: "Boiled Sand",
-                  servings: 4,
-                  time_minutes: 20,
-                  ingredients_used: [{ name: "Rice", quantity: 1, unit: "cups" }],
-                  steps: ["Cook"],
-                  notes: [],
-                },
-              ],
-            },
-          ],
-        }),
-        json: {
-          meals: [
-            {
-              date: "2026-11-09",
-              slot: "lunch",
-              options: [
-                {
-                  title: "Boiled Sand",
-                  servings: 4,
-                  time_minutes: 20,
-                  ingredients_used: [{ name: "Rice", quantity: 1, unit: "cups" }],
-                  steps: ["Cook"],
-                  notes: [],
-                },
-              ],
+              title: "Boiled Sand",
+              servings: 4,
+              time_minutes: 20,
+              ingredients_used: [{ name: "Rice", quantity: 1, unit: "cups" }],
+              steps: ["Cook"],
+              notes: [],
             },
           ],
         },
+      ],
+    };
+    const responses = [
+      {
+        text: JSON.stringify(invalidModelResponse),
+        json: invalidModelResponse,
       },
-      { text: JSON.stringify(validOutput), json: validOutput },
+      { text: JSON.stringify(validModelResponse), json: validModelResponse },
     ];
 
     const llm: LlmClient = {
@@ -168,8 +189,8 @@ describe("planner retries", () => {
         const payload = responses.shift();
         if (!payload) {
           return {
-            text: JSON.stringify(validOutput),
-            json: validOutput,
+            text: JSON.stringify(validModelResponse),
+            json: validModelResponse,
             model: "test-model",
             usage: { inputTokens: 1, outputTokens: 1 },
             latencyMs: 1,
@@ -188,12 +209,90 @@ describe("planner retries", () => {
     const plan = await new Planner(llm).plan(baseInput);
     expect(plan.meals).toHaveLength(2);
   });
+
+  it("exposes each rejected attempt and its inventory-feasibility reason", async () => {
+    const invalid = structuredClone(validModelResponse);
+    invalid.meals[0]!.options[0]!.ingredients_used[0]!.quantity = 100;
+    const llm: LlmClient = {
+      async generateJson() {
+        return {
+          text: JSON.stringify(invalid),
+          json: invalid,
+          model: "test-model",
+          usage: { inputTokens: 10, outputTokens: 20 },
+          latencyMs: 30,
+        };
+      },
+    };
+
+    const error = await new Planner(llm).plan(baseInput).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(PlanningFailed);
+    if (!(error instanceof PlanningFailed)) throw error;
+    expect(error.attempts).toHaveLength(3);
+    expect(error.attempts[0]).toMatchObject({
+      attempt: 1,
+      model: "test-model",
+      issueCategories: ["inventory_feasibility"],
+      issues: [expect.stringContaining('cannot cover "Rice"')],
+    });
+  });
+
+  it("retries malformed JSON with an explicit parse diagnostic", async () => {
+    const responses = [
+      {
+        text: "{ definitely not JSON",
+        json: undefined,
+        parseError: "Unexpected token",
+      },
+      { text: JSON.stringify(validModelResponse), json: validModelResponse },
+    ];
+    const llm: LlmClient = {
+      async generateJson() {
+        const response = responses.shift();
+        return {
+          text: response?.text ?? JSON.stringify(validModelResponse),
+          json: response?.json ?? validModelResponse,
+          parseError: response?.parseError,
+          model: "test-model",
+          usage: { inputTokens: 1, outputTokens: 1 },
+          latencyMs: 1,
+        };
+      },
+    };
+
+    const plan = await new Planner(llm).plan(baseInput);
+
+    expect(plan.meals).toHaveLength(2);
+  });
+
+  it("retains the model's explicit error and reason across retries", async () => {
+    const llm: LlmClient = {
+      async generateJson() {
+        return {
+          text: JSON.stringify({ status: "error", reason: "Not enough rice remains." }),
+          json: { status: "error", reason: "Not enough rice remains." },
+          model: "test-model",
+          usage: { inputTokens: 1, outputTokens: 1 },
+          latencyMs: 1,
+        };
+      },
+    };
+
+    const error = await new Planner(llm).plan(baseInput).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(PlanningFailed);
+    if (!(error instanceof PlanningFailed)) throw error;
+    expect(error.attempts).toHaveLength(3);
+    expect(error.attempts[0]?.issueCategories).toContain("model_reported_error");
+    expect(error.attempts[0]?.issues[0]).toContain("Not enough rice remains");
+  });
 });
 
 describe("fixture replay", () => {
   it("replays a fixed JSON fixture", async () => {
     const client = new FixtureLlmClient({
-      plan_week: JSON.stringify(validOutput),
+      plan_week: JSON.stringify(validModelResponse),
     });
     const response = await client.generateJson({
       system: "plan",
@@ -203,6 +302,6 @@ describe("fixture replay", () => {
       effort: "medium",
       purpose: "plan_week",
     });
-    expect(response.json).toEqual(validOutput);
+    expect(response.json).toEqual(validModelResponse);
   });
 });
