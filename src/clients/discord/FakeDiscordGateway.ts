@@ -20,6 +20,7 @@ export class FakeDiscordGateway implements DiscordGateway {
   private nextMessageId = 1;
   private nextThreadId = 1;
   private readonly reactionHandlers: Array<(event: ReactionAddEvent) => Promise<void>> = [];
+  private readonly failures = new Map<string, unknown[]>();
   private readonly commandHandlers = new Map<
     string,
     Array<(invocation: CommandInvocation) => Promise<void>>
@@ -112,6 +113,13 @@ export class FakeDiscordGateway implements DiscordGateway {
   }
 
   async emitReactionAdd(event: ReactionAddEvent): Promise<void> {
+    const ref = { channelId: event.channelId, messageId: event.messageId };
+    const message = this.messages.get(this.key(ref));
+    if (message) {
+      const users = message.reactions.get(event.emoji) ?? new Set<string>();
+      users.add(event.userId);
+      message.reactions.set(event.emoji, users);
+    }
     await Promise.all(this.reactionHandlers.map((handler) => handler(event)));
   }
 
@@ -131,5 +139,13 @@ export class FakeDiscordGateway implements DiscordGateway {
 
   private record(operation: string, args: unknown[]): void {
     this.calls.push({ operation, args });
+    const queue = this.failures.get(operation);
+    if (queue?.length) throw queue.shift();
+  }
+
+  failNext(operation: string, error: unknown = new Error(`fake ${operation} failed`)): void {
+    const queue = this.failures.get(operation) ?? [];
+    queue.push(error);
+    this.failures.set(operation, queue);
   }
 }

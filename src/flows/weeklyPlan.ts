@@ -14,7 +14,12 @@ import { atLocalTime, nextWeekId, threadName, weekDates, weekIdOf } from "../lib
 import type { WeekId } from "../lib/time.js";
 import type { Slot } from "../domain/types.js";
 import { EMOJIS, optionEmoji } from "../domain/emojis.js";
-import { renderMealDescription, renderMealMessage, renderMealSummary } from "../domain/render.js";
+import {
+  renderMealDescription,
+  renderMealMessage,
+  renderMealRecipeText,
+  renderMealSummary,
+} from "../domain/render.js";
 import type { MealRecord, StateStore, WeekRecord } from "../state/repos.js";
 
 export interface WeeklyPlanDeps {
@@ -212,6 +217,7 @@ export async function buildWeeklyPlannerInput(
   weekId: WeekId,
   meals: PlannerInput["meals"],
   logger: Logger,
+  context: { reserveLunchFirstOption?: boolean; existingWeekTitles?: string[] } = {},
 ): Promise<PlannerInput> {
   const [inventoryRows, bannedRows, likedRows, cookedRows] = await Promise.all([
     sheets.readInventory(),
@@ -241,9 +247,9 @@ export async function buildWeeklyPlannerInput(
     banned: bannedRows.map((row) => row.title),
     liked: likedRows.map((row) => row.title),
     recentlyCooked,
-    existingWeekTitles: [],
+    existingWeekTitles: context.existingWeekTitles ?? [],
     meals,
-    reserveLunchFirstOption: true,
+    reserveLunchFirstOption: context.reserveLunchFirstOption ?? true,
   };
 }
 
@@ -345,24 +351,7 @@ function calendarEvent(
   const end = start.add({ minutes: settings.minutes[meal.slot] });
   const names = options.map((option) => option.title);
   const title = meal.slot === "lunch" ? "Lunch" : (names[0] ?? meal.slot);
-  const recipeText = options
-    .map((option, index) => {
-      const ingredients = option.ingredients_used
-        .map((ingredient) => `- ${ingredient.name}: ${ingredient.quantity} ${ingredient.unit}`)
-        .join("\n");
-      const steps = option.steps.map((step, stepIndex) => `${stepIndex + 1}. ${step}`).join("\n");
-      const notes = option.notes.length
-        ? `\nNotes:\n${option.notes.map((note) => `- ${note}`).join("\n")}`
-        : "";
-      return [
-        `Option ${index + 1}: ${option.title}`,
-        `Servings: ${option.servings}`,
-        `Time: ${option.time_minutes} minutes`,
-        `Ingredients:\n${ingredients}`,
-        `Steps:\n${steps}${notes}`,
-      ].join("\n");
-    })
-    .join("\n\n");
+  const recipeText = renderMealRecipeText(options);
   return {
     mealKey: mealKey(meal),
     summary: renderMealSummary({ title, options: names, statusLine: "Planned" }),

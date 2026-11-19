@@ -6,6 +6,7 @@ import { GoogleSheetsClient } from "./clients/sheets/GoogleSheetsClient.js";
 import { DryRunSheetsClient } from "./clients/sheets/DryRunSheetsClient.js";
 import { loadDotEnv, loadEnv } from "./config/env.js";
 import { registerPlanCommand } from "./discord/commands/plan.js";
+import { registerReactionRouter } from "./discord/reactionRouter.js";
 import { Planner } from "./planner/planner.js";
 import { openDb } from "./state/db.js";
 import { createStateStore } from "./state/repos.js";
@@ -64,6 +65,16 @@ async function main(): Promise<void> {
   } as const;
 
   registerPlanCommand(discord, weeklyPlanDeps, env.discord.allowedUserIds);
+  registerReactionRouter({
+    discord,
+    sheets,
+    planner: weeklyPlanDeps.planner,
+    calendar,
+    state,
+    clock: systemClock,
+    logger,
+    allowedUserIds: env.discord.allowedUserIds,
+  });
   try {
     await discord.start(env.appEnv === "dev");
     withCorrelation(() => {

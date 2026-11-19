@@ -1,6 +1,7 @@
 import type { MealStatus } from "./mealState.js";
 import type { Slot } from "./types.js";
 import { optionEmoji } from "./emojis.js";
+import type { MealOption } from "../planner/schema.js";
 
 export interface RenderMealEventInput {
   title: string;
@@ -54,5 +55,27 @@ export function renderMealDescription(input: RenderMealEventInput): string {
 
 export function renderTrimmedDescription(input: RenderMealEventInput): string {
   const selected = input.options[input.selectedIndex ?? 0] ?? input.title;
-  return `${selected}\n\n---\nStatus: ${input.statusLine}\nAI: ${input.aiFooter ?? "AI-generated recipe"}`;
+  const recipe = input.recipeText ? `\n\n${input.recipeText}` : "";
+  return `${selected}${recipe}\n\n---\nStatus: ${input.statusLine}\nAI: ${input.aiFooter ?? "AI-generated recipe"}`;
+}
+
+export function renderMealRecipeText(options: MealOption[]): string {
+  return options
+    .map((option, index) => {
+      const ingredients = option.ingredients_used
+        .map((ingredient) => `- ${ingredient.name}: ${ingredient.quantity} ${ingredient.unit}`)
+        .join("\n");
+      const steps = option.steps.map((step, stepIndex) => `${stepIndex + 1}. ${step}`).join("\n");
+      const notes = option.notes.length
+        ? `\nNotes:\n${option.notes.map((note) => `- ${note}`).join("\n")}`
+        : "";
+      return [
+        `Option ${index + 1}: ${option.title}`,
+        `Servings: ${option.servings}`,
+        `Time: ${option.time_minutes} minutes`,
+        `Ingredients:\n${ingredients}`,
+        `Steps:\n${steps}${notes}`,
+      ].join("\n");
+    })
+    .join("\n\n");
 }

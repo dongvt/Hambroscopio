@@ -89,26 +89,26 @@ Setup guides live in `docs/setup/`, one file per tool.
 - [x] `/plan` slash command (allowed users only, `deferReply`, `week` option in dev). Register it in the dev guild on startup.
 - [x] On error: post a warning in the channel with the correlation ID, and log the stack.
 - [x] Tests: weekly flow with all fakes; skips a week already `complete`.
-- [ ] Manual check: `/plan` in the dev channel creates the full week and the calendar events.
+- [x] Manual check: `/plan` in the dev channel creates the full week and the calendar events.
 
 ## Slice 7: Reactions, cook, rating
 
-- [ ] `discord/reactionRouter.ts`: ignore the bot → only allowed users (remove others) → only valid emojis for the current state (remove others) → reject past weeks → debounce (re-fetch after N seconds) → per-message lock.
-- [ ] Active week = the week containing today. Messages in the next (already planned) week are accepted too. Older weeks are rejected.
-- [ ] `flows/cook.ts`: "Updating..." → mark cooked, chosen option → deduct inventory → append to Cooked (cook date = the day of the click) → trim the calendar event + ✅ → swap reactions to 👍 👎 → re-render.
-- [ ] `flows/deduct.ts`: match by trimmed, case-insensitive name, clamp at 0, record the deltas, warn about missing rows in the thread, retry once on API failure.
-- [ ] `flows/rate.ts`: 👍 → Liked (if new), 👎 → Banned. Update the Cooked rating. Remove the rating reactions. Rating is final.
-- [ ] On failure: needs_attention + warning message. No automatic recovery (fix SQLite manually or run `/plan`).
-- [ ] Tests: each guardrail, debounce, lock, cook flow, deduction, rating.
-- [ ] Manual check in dev: cook breakfast, cook a lunch option, rate both.
+- [x] `discord/reactionRouter.ts`: ignore the bot → only allowed users (remove others) → only valid emojis for the current state (remove others) → reject past weeks → debounce (re-fetch after N seconds) → per-message lock.
+- [x] Active week = the week containing today. Messages in the next (already planned) week are accepted too. Older weeks are rejected.
+- [x] `flows/cook.ts`: "Updating..." → mark cooked, chosen option → deduct inventory → append to Cooked (cook date = the day of the click) → trim the calendar event + ✅ → swap reactions to 👍 👎 → re-render.
+- [x] `flows/deduct.ts`: match by trimmed, case-insensitive name, clamp at 0, record the deltas, warn about missing rows in the thread, retry once on API failure.
+- [x] `flows/rate.ts`: 👍 → Liked (if new), 👎 → Banned. Update the Cooked rating. Remove the rating reactions. Rating is final.
+- [x] On failure: needs_attention + warning message. No automatic recovery (fix SQLite manually or run `/plan`).
+- [x] Tests: each guardrail, debounce, lock, cook flow, deduction, rating.
+- [x] Manual check in dev: cook breakfast, cook a lunch option, rate both.
 
 ## Slice 8: Reload
 
-- [ ] `flows/reloadMeal.ts`: 🔄 on a meal → plan that meal from the current inventory (other week titles passed to avoid duplicates) → edit message + calendar event → clear the user's 🔄.
-- [ ] `flows/reloadWeek.ts`: 🔄 on the intro → re-plan every uncooked meal whose time is after now, through Sunday → edit each message + event → clear the user's 🔄.
-- [ ] A missing message, thread or event → loud error (never create anything).
-- [ ] Global reload rate limit (10 per hour).
-- [ ] Tests: which meals are selected (for example Wednesday 15:00 → Wednesday dinner onward), cooked meals untouched, missing artifact error, rate limit.
+- [x] `flows/reloadMeal.ts`: 🔄 on a meal → plan that meal from the current inventory (other week titles passed to avoid duplicates) → edit message + calendar event → clear the user's 🔄.
+- [x] `flows/reloadWeek.ts`: 🔄 on the intro → re-plan every uncooked meal whose time is after now, through Sunday → edit each message + event → clear the user's 🔄.
+- [x] A missing message, thread or event → loud error (never create anything).
+- [x] Global reload rate limit (10 per hour).
+- [x] Tests: which meals are selected (for example Wednesday 15:00 → Wednesday dinner onward), cooked meals untouched, missing artifact error, rate limit.
 - [ ] Manual check in dev.
 
 ## Slice 9: Scheduler
