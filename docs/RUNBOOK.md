@@ -44,6 +44,32 @@ ENV_FILE=/absolute/path/to/custom.env npm start
 
 For an inline environment override, `APP_ENV=prod npm start` also selects `.env.prod`.
 
+## Docker
+
+Build the image from the repository root:
+
+```bash
+docker build -t hambroscopio .
+```
+
+Run with the environment file for the desired environment. `.env` should set
+`APP_ENV=dev`; `.env.prod` should set `APP_ENV=prod`. The env file is passed to
+Docker, not copied into the image. Mount `data` so SQLite state survives
+container replacement:
+
+```bash
+docker run -d --name hambroscopio --restart unless-stopped \
+  --env-file .env \
+  -v "$PWD/data:/app/data" \
+  -v "$HOME/.config/gcloud:/home/node/.config/gcloud:ro" \
+  hambroscopio
+```
+
+The gcloud mount is for local ADC-based development. On a GCE VM, use its
+attached service account instead. For production, use `--env-file .env.prod`
+and a distinct container name, such as `hambroscopio-prod`. Follow logs with
+`docker logs -f hambroscopio`.
+
 For formatted logs:
 
 ```bash

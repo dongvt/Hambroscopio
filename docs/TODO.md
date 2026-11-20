@@ -123,6 +123,6 @@ Setup guides live in `docs/setup/`, one file per tool.
 - [x] `docs/RUNBOOK.md`: how to start, stop, view logs (`npm start | pino-pretty`), fix SQLite manually, re-run `/plan`.
 - [x] `docs/E2E_CHECKLIST.md`: manual checks in dev.
 - [ ] **[you]** Run the E2E checklist in dev.
-- [ ] **[you]** Create the production spreadsheet, calendar and Discord bot (same guides, without the `dev` prefix). Fill in a prod `.env`.
+- [x] **[you]** Create the production spreadsheet, calendar and Discord bot (same guides, without the `dev` prefix). Fill in a prod `.env`.
 - [ ] Run with `APP_ENV=prod` for the first real week.
 - [ ] Later (not MVP): Docker, GCP VM, Secret Manager, GCS snapshot.
