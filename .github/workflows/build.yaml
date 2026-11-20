@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Image version to publish (for example, 1.1.1)
+        description: Image version
         required: true
         type: string
 
@@ -58,6 +58,8 @@ jobs:
         env:
           IMAGE_VERSION: ${{ steps.version.outputs.value }}
         run: |
-          image="us-central1-docker.pkg.dev/hambroscopio/hambroscopio:$IMAGE_VERSION"
+          # The segment is [location]-docker.pkg.dev/[project-id]/[repository]/[image]:[tag]
+          # it happens that the project is called hambroscopio, the repository hambroscopio and the image is also called hambroscopio   
+          image="us-central1-docker.pkg.dev/hambroscopio/hambroscopio/hambroscopio:$IMAGE_VERSION"
           docker build --tag "$image" .
           docker push "$image"
