@@ -1,24 +1,275 @@
 name: Deploy to GCP VM
 
 on:
-  push:
-    branches:
-      - main
-  
   workflow_dispatch:
+    inputs:
+      version:
+        description: Image version (for example, 1.1.1 without a leading v)
+        required: true
+        type: string
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     permissions:
-        id-token: write
-        contents: read
+      id-token: write
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
-    
+
       - name: Set up GCP credentials
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.GH_DEPLOYER_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Deploy to GCP VM
+        id: deploy
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          HAMBROSCOPIO_ENV: ${{ secrets.HAMBROSCOPIO_ENV }}
+          VM_ZONE: us-central1-c
+          VM_NAME: hambroscopio-server
+        run: |
+          set -uo pipefail
+          log_file="$RUNNER_TEMP/deployment.log"
+          : > "$log_file"
+
+          if [[ ! "$VERSION" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo "ERROR: Invalid image version." | tee -a "$log_file"
+            exit 1
+          fi
+
+          if [[ -z "$HAMBROSCOPIO_ENV" ]]; then
+            echo "ERROR: HAMBROSCOPIO_ENV secret is empty." | tee -a "$log_file"
+            exit 1
+          fi
+
+          image="us-central1-docker.pkg.dev/hambroscopio/hambroscopio/hambroscopio:$VERSION"
+          local_env_file="$(mktemp)"
+          trap 'rm -f "$local_env_file"' EXIT
+          chmod 600 "$local_env_file"
+          printf '%s\n' "$HAMBROSCOPIO_ENV" > "$local_env_file"
+
+          remote_env_file="/tmp/hambroscopio-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.env"
+
+          if ! vm_status=$(gcloud compute instances describe "$VM_NAME" \
+            --zone="$VM_ZONE" --format='value(status)' 2>&1); then
+            echo "$vm_status" | tee -a "$log_file"
+            exit 1
+          fi
+          echo "REPORT_VM_STATUS=$vm_status" | tee -a "$log_file"
+
+          set +e
+          gcloud compute scp "$local_env_file" "$VM_NAME:$remote_env_file" \
+            --zone="$VM_ZONE" --tunnel-through-iap --quiet 2>&1 | tee -a "$log_file"
+          command_status=${PIPESTATUS[0]}
+          set -e
+          if (( command_status != 0 )); then
+            exit "$command_status"
+          fi
+
+          set +e
+          gcloud compute ssh "$VM_NAME" \
+            --zone="$VM_ZONE" --tunnel-through-iap --quiet \
+            --command="IMAGE='$image' ENV_FILE='$remote_env_file' VM_NAME='$VM_NAME' bash -s" <<'EOF' 2>&1 | tee -a "$log_file"
+          set -Eeuo pipefail
+          NAME=hambroscopio
+          started_at_utc=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          trap 'rm -f "$ENV_FILE"' EXIT
+
+          echo "VM hostname: $(hostname)"
+          echo "Deployment started (UTC): $started_at_utc"
+          echo "Requested image: $IMAGE"
+          echo "### Containers before deployment"
+          sudo docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+
+          other_containers=$(sudo docker ps -a --format '{{.Names}}' | grep -Fxv "$NAME" || true)
+          if [[ -n "$other_containers" ]]; then
+            echo "ERROR: Refusing to remove unrelated containers:"
+            printf '%s\n' "$other_containers"
+            exit 1
+          fi
+
+          if [[ ! -s "$ENV_FILE" ]]; then
+            echo "ERROR: The uploaded environment file is missing or empty."
+            exit 1
+          fi
+          chmod 600 "$ENV_FILE"
+
+          images_before=$(sudo docker image ls -q --no-trunc | sort -u | sed '/^$/d' | wc -l | tr -d ' ')
+          echo "Unique image IDs before deployment: $images_before"
+          echo "### Images before cleanup"
+          sudo docker image ls --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}'
+
+          gcloud auth print-access-token | sudo docker login \
+            -u oauth2accesstoken --password-stdin us-central1-docker.pkg.dev
+          sudo docker pull "$IMAGE"
+
+          if sudo docker container inspect "$NAME" >/dev/null 2>&1; then
+            sudo docker rm --force "$NAME"
+          fi
+
+          sudo docker run --detach \
+            --name "$NAME" \
+            --restart unless-stopped \
+            --env-file "$ENV_FILE" \
+            --mount type=volume,source=hambroscopio-data,target=/app/data \
+            "$IMAGE"
+
+          sleep 10
+          container_status=$(sudo docker inspect --format '{{.State.Status}}' "$NAME")
+          if [[ "$container_status" != "running" ]]; then
+            echo "ERROR: Bot container is not running (status: $container_status)."
+            exit 1
+          fi
+
+          while read -r image_ref image_id; do
+            if [[ "$image_ref" != "$IMAGE" ]]; then
+              if [[ "$image_ref" == "<none>:<none>" ]]; then
+                sudo docker image rm --force "$image_id"
+              else
+                sudo docker image rm --force "$image_ref"
+              fi
+            fi
+          done < <(sudo docker image ls --format '{{.Repository}}:{{.Tag}} {{.ID}}')
+          sudo docker image prune --all --force
+
+          container_names=$(sudo docker ps -a --format '{{.Names}}')
+          running_names=$(sudo docker ps --format '{{.Names}}')
+          total_containers=$(sudo docker ps -a -q | wc -l | tr -d ' ')
+          running_containers=$(sudo docker ps -q | wc -l | tr -d ' ')
+          container_image=$(sudo docker inspect --format '{{.Config.Image}}' "$NAME")
+          container_image_id=$(sudo docker inspect --format '{{.Image}}' "$NAME")
+          deployed_image_id=$(sudo docker image inspect --format '{{.Id}}' "$IMAGE")
+          image_refs=$(sudo docker image ls --format '{{.Repository}}:{{.Tag}}')
+          image_ids=$(sudo docker image ls -q --no-trunc | sort -u)
+
+          if [[ "$container_names" != "$NAME" || "$running_names" != "$NAME" \
+            || "$total_containers" != "1" || "$running_containers" != "1" ]]; then
+            echo "ERROR: Expected exactly one container, named '$NAME', and running."
+            sudo docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+            exit 1
+          fi
+
+          if [[ "$container_image" != "$IMAGE" || "$container_image_id" != "$deployed_image_id" ]]; then
+            echo "ERROR: The running container is not using the requested image."
+            exit 1
+          fi
+
+          if [[ "$image_refs" != "$IMAGE" || "$image_ids" != "$deployed_image_id" ]]; then
+            echo "ERROR: Docker has images other than the deployed image after cleanup."
+            sudo docker image ls --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}'
+            exit 1
+          fi
+
+          echo "### Verified container"
+          sudo docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+
+          echo "REPORT_VM_NAME=$VM_NAME"
+          echo "REPORT_VM_HOSTNAME=$(hostname)"
+          echo "REPORT_STARTED_AT_UTC=$started_at_utc"
+          echo "REPORT_IMAGE=$IMAGE"
+          echo "REPORT_IMAGES_BEFORE=$images_before"
+          echo "REPORT_IMAGES_AFTER=1 (deployed image only)"
+          echo "REPORT_IMAGE_CLEANUP=PASS"
+          echo "REPORT_TOTAL_CONTAINERS=$total_containers"
+          echo "REPORT_RUNNING_CONTAINERS=$running_containers"
+          echo "REPORT_CONTAINER_NAME=$NAME"
+          echo "REPORT_CONTAINER_IMAGE=$container_image"
+          echo "REPORT_IMAGE_ID=$deployed_image_id"
+          echo "REPORT_CONTAINER_STATUS=$container_status"
+          echo "REPORT_COMPLETED_AT_UTC=$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          EOF
+          command_status=${PIPESTATUS[0]}
+          set -e
+          exit "$command_status"
+
+      - name: Add deployment summary
+        if: always()
+        env:
+          VERSION: ${{ inputs.version }}
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+        run: |
+          log_file="$RUNNER_TEMP/deployment.log"
+
+          report_value() {
+            local key="$1"
+            if [[ -f "$log_file" ]]; then
+              awk -v prefix="REPORT_${key}=" \
+                'index($0, prefix) == 1 { value = substr($0, length(prefix) + 1) } END { print value }' \
+                "$log_file"
+            fi
+          }
+
+          result="❌ Failed"
+          [[ "$DEPLOY_OUTCOME" == "success" ]] && result="✅ Succeeded"
+          completed_at="$(report_value COMPLETED_AT_UTC)"
+          [[ -n "$completed_at" ]] || completed_at="Not verified"
+          vm_hostname="$(report_value VM_HOSTNAME)"
+          [[ -n "$vm_hostname" ]] || vm_hostname="Not verified"
+          vm_name="$(report_value VM_NAME)"
+          [[ -n "$vm_name" ]] || vm_name="Not verified"
+          vm_status="$(report_value VM_STATUS)"
+          [[ -n "$vm_status" ]] || vm_status="Not verified"
+          started_at="$(report_value STARTED_AT_UTC)"
+          [[ -n "$started_at" ]] || started_at="Not verified"
+          images_before="$(report_value IMAGES_BEFORE)"
+          [[ -n "$images_before" ]] || images_before="Not verified"
+          images_after="$(report_value IMAGES_AFTER)"
+          [[ -n "$images_after" ]] || images_after="Not verified"
+          image_cleanup="$(report_value IMAGE_CLEANUP)"
+          [[ "$image_cleanup" == "PASS" ]] && image_cleanup="✅ Passed" || image_cleanup="❌ Not verified"
+          total_containers="$(report_value TOTAL_CONTAINERS)"
+          [[ -n "$total_containers" ]] || total_containers="Not verified"
+          running_containers="$(report_value RUNNING_CONTAINERS)"
+          [[ -n "$running_containers" ]] || running_containers="Not verified"
+          container_name="$(report_value CONTAINER_NAME)"
+          [[ -n "$container_name" ]] || container_name="Not verified"
+          container_status="$(report_value CONTAINER_STATUS)"
+          [[ -n "$container_status" ]] || container_status="Not verified"
+          container_image="$(report_value CONTAINER_IMAGE)"
+          [[ -n "$container_image" ]] || container_image="Not verified"
+          image_id="$(report_value IMAGE_ID)"
+          [[ -n "$image_id" ]] || image_id="Not verified"
+          if [[ "$VERSION" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+            image="us-central1-docker.pkg.dev/hambroscopio/hambroscopio/hambroscopio:$VERSION"
+          else
+            image="Invalid version"
+          fi
+
+          {
+            echo "## 🚀 Deployment summary"
+            echo
+            echo "| Check | Result |"
+            echo "|---|---|"
+            echo "| Status | $result |"
+            echo "| VM instance status | $vm_status |"
+            echo "| Started (UTC) | $started_at |"
+            echo "| Completed (UTC) | $completed_at |"
+            echo "| VM | \`$vm_name\` (\`$vm_hostname\`) |"
+            echo "| Requested image | \`$image\` |"
+            echo "| Previous unique images | $images_before |"
+            echo "| Images after cleanup | $images_after |"
+            echo "| Old image cleanup | $image_cleanup |"
+            echo "| Containers | $total_containers total / $running_containers running |"
+            echo "| Bot container | \`$container_name\` — $container_status |"
+            echo "| Container image | \`$container_image\` |"
+            echo "| Image ID | \`$image_id\` |"
+            echo
+            echo "<details><summary>📜 Full deployment logs</summary>"
+            echo
+            echo "<pre>"
+            if [[ -s "$log_file" ]]; then
+              sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' "$log_file"
+            else
+              echo "No deployment logs were captured."
+            fi
+            echo "</pre>"
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
