@@ -14,6 +14,8 @@ import { systemClock } from "./lib/clock.js";
 import { withCorrelation } from "./lib/context.js";
 import { AppError } from "./lib/errors.js";
 import { createLogger } from "./lib/logger.js";
+import { createScheduler } from "./scheduler/scheduler.js";
+import { runWeeklyPlan } from "./flows/weeklyPlan.js";
 
 async function main(): Promise<void> {
   loadDotEnv();
@@ -75,8 +77,18 @@ async function main(): Promise<void> {
     logger,
     allowedUserIds: env.discord.allowedUserIds,
   });
+  const scheduler = createScheduler({
+    sheets,
+    discord,
+    state,
+    clock: systemClock,
+    logger,
+    channelId: env.discord.channelId,
+    runWeeklyPlan: () => runWeeklyPlan(weeklyPlanDeps),
+  });
   try {
     await discord.start(env.appEnv === "dev");
+    await scheduler.start();
     withCorrelation(() => {
       logger.info(
         {
@@ -95,6 +107,7 @@ async function main(): Promise<void> {
   }
 
   const shutdown = async (): Promise<void> => {
+    scheduler.stop();
     await discord.stop();
     db.close();
   };

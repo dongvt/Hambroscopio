@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { loadEnv } from "../../src/config/env.js";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { loadDotEnv, loadEnv, resolveEnvPath } from "../../src/config/env.js";
 import { AppError } from "../../src/lib/errors.js";
 
 const valid = {
@@ -20,6 +23,15 @@ function errorOf(fn: () => unknown): AppError {
   } catch (e) {
     return e as AppError;
   }
+
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    for (const key of Object.keys(process.env)) {
+      if (!(key in originalEnv)) delete process.env[key];
+    }
+    Object.assign(process.env, originalEnv);
+  });
   throw new Error("expected an error");
 }
 
@@ -33,6 +45,43 @@ describe("loadEnv", () => {
     expect(env.discord.allowedUserIds).toEqual(["423456789012345678", "523456789012345678"]);
     expect(env.anthropic.model).toBe("claude-haiku-5-5");
     expect(env.anthropic.effort).toBe("medium");
+  });
+
+  describe("loadDotEnv", () => {
+    it("selects dev and prod files from explicit arguments and environment", () => {
+      expect(resolveEnvPath(["node", "main.js"], {})).toBe(".env");
+      expect(resolveEnvPath(["node", "main.js", "--prod"], {})).toBe(".env.prod");
+      expect(resolveEnvPath(["node", "main.js", "--env=prod"], {})).toBe(".env.prod");
+      expect(resolveEnvPath(["node", "main.js"], { APP_ENV: "prod" })).toBe(".env.prod");
+      expect(resolveEnvPath(["node", "main.js"], { APP_ENV: "dev" })).toBe(".env");
+      expect(resolveEnvPath(["node", "main.js"], { ENV_FILE: "/tmp/custom.env" })).toBe(
+        "/tmp/custom.env",
+      );
+    });
+
+    it("loads only the selected environment file", () => {
+      const dir = mkdtempSync(join(tmpdir(), "mealbot-env-"));
+      try {
+        const devPath = join(dir, ".env");
+        const prodPath = join(dir, ".env.prod");
+        writeFileSync(devPath, "APP_ENV=dev\nDISCORD_TOKEN=dev-token\n");
+        writeFileSync(prodPath, "APP_ENV=prod\nDISCORD_TOKEN=prod-token\n");
+
+        delete process.env.APP_ENV;
+        delete process.env.DISCORD_TOKEN;
+        loadDotEnv(devPath);
+        expect(process.env.APP_ENV).toBe("dev");
+        expect(process.env.DISCORD_TOKEN).toBe("dev-token");
+
+        delete process.env.APP_ENV;
+        delete process.env.DISCORD_TOKEN;
+        loadDotEnv(prodPath);
+        expect(process.env.APP_ENV).toBe("prod");
+        expect(process.env.DISCORD_TOKEN).toBe("prod-token");
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
   });
 
   it("parses DRY_RUN", () => {

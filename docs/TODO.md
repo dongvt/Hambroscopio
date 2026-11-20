@@ -109,19 +109,19 @@ Setup guides live in `docs/setup/`, one file per tool.
 - [x] A missing message, thread or event → loud error (never create anything).
 - [x] Global reload rate limit (10 per hour).
 - [x] Tests: which meals are selected (for example Wednesday 15:00 → Wednesday dinner onward), cooked meals untouched, missing artifact error, rate limit.
-- [ ] Manual check in dev.
+- [x] Manual check in dev.
 
 ## Slice 9: Scheduler
 
-- [ ] Install `croner`. Tick every 15 minutes: read Config, and if past `plan_day plan_time` with no plan for the upcoming week, run the weekly flow.
-- [ ] Catch-up on startup (setting, default on).
-- [ ] Interrupted week (status planning or posting) → log + channel warning, wait for `/plan`.
-- [ ] Tests with a fake clock: due/not due, catch-up, skip complete, interrupted.
+- [x] Install `croner`. Tick every 15 minutes: read Config, and if past `plan_day plan_time` with no plan for the upcoming week, run the weekly flow.
+- [x] Catch-up on startup (setting, default on).
+- [x] Interrupted week (status planning or posting) → log + channel warning, wait for `/plan`.
+- [x] Tests with a fake clock: due/not due, catch-up, skip complete, interrupted.
 
 ## Slice 10: Run on this computer for the first week
 
-- [ ] `docs/RUNBOOK.md`: how to start, stop, view logs (`npm start | pino-pretty`), fix SQLite manually, re-run `/plan`.
-- [ ] `docs/E2E_CHECKLIST.md`: manual checks in dev.
+- [x] `docs/RUNBOOK.md`: how to start, stop, view logs (`npm start | pino-pretty`), fix SQLite manually, re-run `/plan`.
+- [x] `docs/E2E_CHECKLIST.md`: manual checks in dev.
 - [ ] **[you]** Run the E2E checklist in dev.
 - [ ] **[you]** Create the production spreadsheet, calendar and Discord bot (same guides, without the `dev` prefix). Fill in a prod `.env`.
 - [ ] Run with `APP_ENV=prod` for the first real week.

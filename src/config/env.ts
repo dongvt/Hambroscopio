@@ -63,8 +63,20 @@ export interface Env {
   };
 }
 
+export function resolveEnvPath(
+  argv: string[] = process.argv,
+  source: Record<string, string | undefined> = process.env,
+): string {
+  if (source.ENV_FILE?.trim()) return source.ENV_FILE.trim();
+  if (argv.includes("--prod") || argv.includes("--env=prod")) return ".env.prod";
+  if (argv.includes("--dev") || argv.includes("--env=dev")) return ".env";
+  if (source.APP_ENV === "prod") return ".env.prod";
+  if (source.APP_ENV === "dev") return ".env";
+  return ".env";
+}
+
 /** Loads a .env file into process.env without overriding variables that are already set. */
-export function loadDotEnv(path = ".env"): void {
+export function loadDotEnv(path: string = resolveEnvPath()): void {
   if (!existsSync(path)) return;
   const parsed = parseEnv(readFileSync(path, "utf8"));
   for (const [key, value] of Object.entries(parsed)) {
