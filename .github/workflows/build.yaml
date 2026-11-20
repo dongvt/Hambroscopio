@@ -1,21 +1,63 @@
 name: Build docker image and push
 
 on:
-  push:
-    branches:
-      - main
-  
+  release:
+    types:
+      - published
+
   workflow_dispatch:
+    inputs:
+      version:
+        description: Image version to publish (for example, 1.1.1)
+        required: true
+        type: string
 
 jobs:
-  deploy:
+  build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
-    
+
       - name: Set up GCP credentials
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.GH_DEPLOYER_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Determine image version
+        id: version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          DISPATCH_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "release" ]]; then
+            version="${RELEASE_TAG#v}"
+          else
+            version="$DISPATCH_VERSION"
+          fi
+
+          if [[ ! "$version" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo "Invalid image version: $version" >&2
+            exit 1
+          fi
+
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        env:
+          IMAGE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          image="us-central1-docker.pkg.dev/hambroscopio/hambroscopio:$IMAGE_VERSION"
+          docker build --tag "$image" .
+          docker push "$image"
