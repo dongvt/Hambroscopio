@@ -17,5 +17,5 @@ jobs:
       - name: Set up GCP credentials
         uses: google-github-actions/auth@v3
         with:
-          workload_identity_provider: {{ secrets.WIF_PROVIDER }}
-          service_account: {{ secrets.GH_DEPLOYER_SA }}
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GH_DEPLOYER_SA }}

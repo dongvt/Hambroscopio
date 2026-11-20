@@ -1,0 +1,21 @@
+name: Build docker image and push
+
+on:
+  push:
+    branches:
+      - main
+  
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+    
+      - name: Set up GCP credentials
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GH_DEPLOYER_SA }}
