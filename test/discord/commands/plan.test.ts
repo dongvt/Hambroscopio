@@ -60,8 +60,9 @@ describe("/plan diagnostics", () => {
       },
     });
 
-    expect(replies[0]).toContain("Attempt 1 (inventory_feasibility)");
-    expect(replies[0]).toContain('cannot cover "Rice": available 1, needed 3');
-    expect(replies[0]).toContain("LOG_LEVEL=debug");
+    expect(replies[0]).toContain("Planning the week now");
+    expect(replies.at(-1)).toContain("Attempt 1 (inventory_feasibility)");
+    expect(replies.at(-1)).toContain('cannot cover "Rice": available 1, needed 3');
+    expect(replies.at(-1)).toContain("correction attempts");
   });
 });

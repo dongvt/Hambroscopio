@@ -16,7 +16,8 @@
     "format:check": "prettier --check .",
     "check:sheets": "tsx scripts/check-sheets.ts",
     "check:calendar": "tsx scripts/check-calendar.ts",
-    "check:planner": "tsx scripts/check-planner.ts"
+    "check:planner": "tsx scripts/check-planner.ts",
+    "check:planner:prod": "tsx scripts/check-planner.ts --allow-prod"
   },
   "type": "module",
   "dependencies": {

@@ -8,6 +8,8 @@ import { plannerResponseSchema } from "./schema.js";
 
 export { type PlannerInput } from "./validate.js";
 
+const MAX_OUTPUT_TOKENS = 30_000;
+
 export interface PlannerResult {
   meals: Array<{
     date: string;
@@ -29,6 +31,7 @@ export interface PlannerAttemptDiagnostic {
   latencyMs: number;
   inputTokens: number;
   outputTokens: number;
+  stopReason?: string;
   parseError?: string;
   issueCategories: string[];
   issues: string[];
@@ -63,7 +66,7 @@ export class Planner {
         system: prompt.system,
         messages: prompt.messages,
         jsonSchema: {},
-        maxTokens: 15000,
+        maxTokens: MAX_OUTPUT_TOKENS,
         effort: this.effort,
         purpose: input.reserveLunchFirstOption ? ("plan_week" as const) : ("reload_meal" as const),
       };
@@ -95,7 +98,11 @@ export class Planner {
       let parsedResult: PlannerResult | undefined;
       let issues: string[];
       if (response.parseError) {
-        issues = [`Response was not valid JSON: ${response.parseError}`];
+        const truncation =
+          response.stopReason === "max_tokens"
+            ? " The response reached the output token limit."
+            : "";
+        issues = [`Response was not valid JSON: ${response.parseError}.${truncation}`];
       } else {
         const parsedResponse = plannerResponseSchema.safeParse(response.json);
         if (!parsedResponse.success) {
@@ -114,6 +121,7 @@ export class Planner {
         latencyMs: response.latencyMs,
         inputTokens: response.usage.inputTokens,
         outputTokens: response.usage.outputTokens,
+        ...(response.stopReason ? { stopReason: response.stopReason } : {}),
         ...(response.parseError ? { parseError: response.parseError } : {}),
         issueCategories,
         issues,

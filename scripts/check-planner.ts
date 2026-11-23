@@ -1,4 +1,4 @@
-// Live check: plans the upcoming week from the configured dev sheet using the .env model.
+// Live check: plans a week from the configured sheet using the selected .env model.
 // Read-only for Sheets; no Discord or Calendar writes. Planner retries at most three times.
 import { GoogleSheetsClient } from "../src/clients/sheets/GoogleSheetsClient.js";
 import { loadDotEnv, loadEnv } from "../src/config/env.js";
@@ -11,11 +11,21 @@ import { nextWeekId, weekDates, weekIdOf } from "../src/lib/time.js";
 import { AnthropicLlmClient } from "../src/clients/llm/AnthropicLlmClient.js";
 import { Planner, PlanningFailed } from "../src/planner/planner.js";
 
+const args = process.argv.slice(2);
+const allowProd = args.includes("--allow-prod");
+const weekArgument = args.find((argument) => argument.startsWith("--week="));
+const requestedWeek = weekArgument?.slice("--week=".length);
+const mealArgument = args.find((argument) => argument.startsWith("--meal="));
+const requestedMeal = mealArgument?.slice("--meal=".length);
+
 loadDotEnv();
 const env = loadEnv();
 
-if (env.appEnv !== "dev") {
-  console.error("Refusing live planner check: set APP_ENV=dev in the environment.");
+if (env.appEnv === "prod" && !allowProd) {
+  console.error("Refusing production planner check without --allow-prod.");
+  process.exitCode = 1;
+} else if (env.appEnv === "dev" && allowProd) {
+  console.error("Refusing --allow-prod because the selected environment is not prod.");
   process.exitCode = 1;
 } else {
   const logger = createLogger({ level: env.logLevel, pretty: true });
@@ -37,14 +47,38 @@ if (env.appEnv !== "dev") {
       }
 
       const now = systemClock.now().toZonedDateTimeISO(settings.timezone).toPlainDate();
-      const weekId = nextWeekId(weekIdOf(now));
-      const meals = weekDates(weekId).flatMap((date) =>
-        (["breakfast", "lunch", "dinner"] as const).map((slot) => ({
-          date: date.toString(),
-          slot,
-          options: settings.options[slot],
-        })),
-      );
+      const mealMatch = requestedMeal
+        ? /^(\d{4}-\d{2}-\d{2}):(breakfast|lunch|dinner)$/.exec(requestedMeal)
+        : null;
+      if (requestedMeal && !mealMatch) {
+        throw new Error("Invalid --meal value; expected YYYY-MM-DD:breakfast|lunch|dinner.");
+      }
+      const mealDate = mealMatch?.[1];
+      const mealSlot = mealMatch?.[2] as "breakfast" | "lunch" | "dinner" | undefined;
+      const weekId =
+        requestedWeek ??
+        (mealDate ? weekIdOf(Temporal.PlainDate.from(mealDate)) : nextWeekId(weekIdOf(now)));
+      const weekStart = Temporal.PlainDate.from(weekId);
+      if (weekStart.toString() !== weekId || weekStart.dayOfWeek !== 1) {
+        throw new Error(`Invalid --week value "${weekId}"; expected a Monday YYYY-MM-DD.`);
+      }
+      const meals = requestedMeal
+        ? (() => {
+            const date = Temporal.PlainDate.from(mealDate!);
+            if (weekIdOf(date) !== weekId) {
+              throw new Error(`Meal date ${date} is outside week ${weekId}.`);
+            }
+            return [
+              { date: date.toString(), slot: mealSlot!, options: settings.options[mealSlot!] },
+            ];
+          })()
+        : weekDates(weekId).flatMap((date) =>
+            (["breakfast", "lunch", "dinner"] as const).map((slot) => ({
+              date: date.toString(),
+              slot,
+              options: settings.options[slot],
+            })),
+          );
       const input = await buildWeeklyPlannerInput(sheets, settings, weekId, meals, logger);
       const planner = new Planner(
         new AnthropicLlmClient({
@@ -58,7 +92,7 @@ if (env.appEnv !== "dev") {
       );
 
       console.log(
-        `Testing configured model "${env.anthropic.model}" at effort "${env.anthropic.effort}" for week ${weekId}.`,
+        `Testing configured ${env.appEnv} model "${env.anthropic.model}" at effort "${env.anthropic.effort}" for ${meals.length} meal(s) in week ${weekId}. This check does not write to Sheets, Calendar, or Discord.`,
       );
       const result = await planner.plan(input);
       console.log(

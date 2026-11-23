@@ -220,13 +220,25 @@ export class DiscordJsGateway implements DiscordGateway {
   onSlashCommand(name: string, handler: (invocation: CommandInvocation) => Promise<void>): void {
     this.client.on(Events.InteractionCreate, async (interaction) => {
       if (!interaction.isChatInputCommand() || interaction.commandName !== name) return;
+      this.logger.info(
+        { command: name, userId: interaction.user.id, interactionId: interaction.id },
+        "discord slash command received",
+      );
       const invocation: CommandInvocation = {
         userId: interaction.user.id,
         options: {
           week: interaction.options.getString("week") ?? undefined,
         },
         defer: async () => {
+          this.logger.info(
+            { command: name, interactionId: interaction.id },
+            "acknowledging discord slash command",
+          );
           await interaction.deferReply({ ephemeral: true });
+          this.logger.info(
+            { command: name, interactionId: interaction.id },
+            "discord slash command acknowledged",
+          );
         },
         reply: async (text) => {
           if (interaction.deferred || interaction.replied) {
@@ -241,13 +253,20 @@ export class DiscordJsGateway implements DiscordGateway {
         await handler(invocation);
       } catch (error) {
         this.logger.error({ err: error, command: name }, "discord slash command handler failed");
-        if (interaction.deferred || interaction.replied) {
-          await interaction.editReply("The command failed. Check the bot logs.");
-        } else {
-          await interaction.reply({
-            content: "The command failed. Check the bot logs.",
-            ephemeral: true,
-          });
+        try {
+          if (interaction.deferred || interaction.replied) {
+            await interaction.editReply("The command failed. Check the bot logs.");
+          } else {
+            await interaction.reply({
+              content: "The command failed. Check the bot logs.",
+              ephemeral: true,
+            });
+          }
+        } catch (replyError) {
+          this.logger.error(
+            { err: replyError, command: name, interactionId: interaction.id },
+            "failed to send discord slash command error response",
+          );
         }
       }
     });

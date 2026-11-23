@@ -7,7 +7,7 @@ This runbook covers running the bot locally on this computer.
 Complete the setup guides and confirm:
 
 - `.env` exists for dev and, when switching to production, `.env.prod` contains valid prod values.
-- ADC is configured for the dev service account.
+- ADC is configured for the service account that has access to the selected environment's sheet and calendar. Dev and prod use separate service accounts.
 - The dev Discord bot is in the private dev channel.
 - The dev spreadsheet and calendar are shared with the dev service account.
 - Node 26 is active: `source ~/.nvm/nvm.sh && nvm use`.
@@ -97,6 +97,10 @@ npm run build
 ```
 
 `check:planner` makes real Anthropic requests. `check:calendar` creates and patches a real dev-calendar event.
+
+For a deliberately read-only production planner check, use `ENV_FILE=.env.prod npm run check:planner:prod`. Pass `-- --week=YYYY-MM-DD` to reproduce a specific Monday week, or `-- --meal=YYYY-MM-DD:dinner` to test one meal. This reads production Sheets and sends the data to Anthropic, but does not write to Sheets, Calendar, or Discord; it can make up to three model requests.
+
+The configured environment file selects the spreadsheet and calendar, but Google access is selected separately by ADC. Before dev checks, confirm ADC is impersonating the dev service account; before prod, switch to the prod service account. A Sheets or Calendar 403 usually means the active service account has not been shared on that resource.
 
 ## Logs
 
@@ -207,8 +211,11 @@ For `weeks.status='planning'` or `weeks.status='posting'`:
 
 1. Inspect logs and warning correlation IDs.
 2. Check whether threads/messages/events exist.
-3. The weekly flow reuses saved IDs and existing Discord/Calendar artifacts where possible.
-4. Restart the bot.
-5. Run `/plan` for the interrupted week.
+3. If status is `planning` and no complete meal plan was saved, `/plan` reruns planning.
+4. If status is `posting` and all 21 meals were saved, `/plan` resumes posting and reuses saved IDs and existing Discord/Calendar artifacts where possible.
+5. If status is `posting` with incomplete meal state, `/plan` refuses to continue; inspect SQLite and logs before repairing state.
+6. Restart the bot and run `/plan`.
 
 Do not run `/plan` concurrently with a scheduled run or another `/plan`.
+
+If Discord says the application did not respond, check that the running process was rebuilt and restarted with the intended environment file. At info log level, look for `discord slash command received`, `discord slash command acknowledged`, and `plan command completed`; if the first line is absent, that process did not receive the interaction.
