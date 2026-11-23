@@ -29,8 +29,10 @@ export function registerPlanCommand(
         });
         await invocation.reply(
           result.status === "skipped"
-            ? `Week ${result.weekId} is already complete; nothing was changed.`
-            : `Week ${result.weekId} was planned and posted.`,
+            ? `Week ${result.weekId} is already complete; all saved artifacts are present.`
+            : result.status === "repaired"
+              ? `Week ${result.weekId} was already complete. Missing Discord or Calendar artifacts were restored.`
+              : `Week ${result.weekId} was planned and posted.`,
         );
         deps.logger.info({ userId: invocation.userId }, "plan command completed");
       } catch (error) {

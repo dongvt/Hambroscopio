@@ -138,6 +138,34 @@ describe("weekly plan flow", () => {
     expect(deps.state.weeks.get("2026-11-16")?.status).toBe("complete");
     expect(deps.state.meals.listForWeek("2026-11-16")).toHaveLength(21);
   });
+
+  it("recreates deleted Discord threads and messages for a completed week without replanning", async () => {
+    const { deps, db, planner } = makeDeps();
+    databases.push(db);
+    await runWeeklyPlan(deps);
+
+    const originalEventIds = deps.state.meals
+      .listForWeek("2026-11-16")
+      .map((meal) => meal.calendarEventId);
+    for (const [threadId] of deps.discord.threads) {
+      deps.discord.threads.delete(threadId);
+    }
+    deps.discord.messages.clear();
+
+    const result = await runWeeklyPlan(deps);
+
+    expect(result).toEqual({ weekId: "2026-11-16", status: "repaired" });
+    expect(planner.plan).toHaveBeenCalledTimes(1);
+    expect(deps.discord.threads.size).toBe(7);
+    expect(deps.discord.messages.size).toBe(22);
+    expect(deps.state.meals.listForWeek("2026-11-16").map((meal) => meal.calendarEventId)).toEqual(
+      originalEventIds,
+    );
+    expect(deps.state.meals.listForWeek("2026-11-16").every((meal) => meal.discordMessageId)).toBe(
+      true,
+    );
+    expect(deps.state.weeks.get("2026-11-16")?.status).toBe("complete");
+  });
 });
 
 function makeDeps(): {

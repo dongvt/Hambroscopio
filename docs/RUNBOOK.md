@@ -218,4 +218,6 @@ For `weeks.status='planning'` or `weeks.status='posting'`:
 
 Do not run `/plan` concurrently with a scheduled run or another `/plan`.
 
+For a `complete` week with manually deleted Discord threads or messages, `/plan` now checks the saved Discord references and recreates missing threads/messages without generating a new meal plan. It keeps existing Calendar event IDs, checks those events, and only recreates an event if it is actually missing. Avoid deleting Discord artifacts manually unless you intend to run this repair.
+
 If Discord says the application did not respond, check that the running process was rebuilt and restarted with the intended environment file. At info log level, look for `discord slash command received`, `discord slash command acknowledged`, and `plan command completed`; if the first line is absent, that process did not receive the interaction.

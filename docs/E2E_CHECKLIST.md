@@ -99,6 +99,7 @@ Use the private dev channel, dev sheet and dev calendar. Do not run this checkli
 - [ ] Interrupted `planning` or `posting` state is warned on startup.
 - [ ] `/plan` reruns planning when the interrupted status is `planning` and no complete meal plan was saved.
 - [ ] `/plan` resumes posting a fully saved plan without duplicating artifacts.
+- [ ] For a complete week, delete a day thread in dev and run `/plan`; the thread/messages are restored without replanning or duplicating Calendar events.
 - [ ] `/plan` clearly refuses an incomplete saved plan in `posting` state.
 - [ ] SQLite backup is taken before any manual repair.
 
