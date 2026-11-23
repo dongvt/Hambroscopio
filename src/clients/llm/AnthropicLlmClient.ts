@@ -45,21 +45,23 @@ export class AnthropicLlmClient implements LlmClient {
       "Sending planner prompt to Anthropic",
     );
 
-    const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: req.maxTokens,
-      system: req.system,
-      messages: req.messages.map((m) => ({ role: m.role, content: m.content })),
-      thinking:
-        effort === "none"
-          ? undefined
-          : {
-              type: "adaptive",
-            },
-      output_config: {
-        effort: effort === "none" ? "low" : effort,
-      },
-    });
+    const response = await this.client.messages
+      .stream({
+        model: this.model,
+        max_tokens: req.maxTokens,
+        system: req.system,
+        messages: req.messages.map((m) => ({ role: m.role, content: m.content })),
+        thinking:
+          effort === "none"
+            ? undefined
+            : {
+                type: "adaptive",
+              },
+        output_config: {
+          effort: effort === "none" ? "low" : effort,
+        },
+      })
+      .finalMessage();
 
     const textBlock = Array.isArray(response.content)
       ? response.content.find((part) => part.type === "text")
@@ -99,6 +101,7 @@ export class AnthropicLlmClient implements LlmClient {
         effort,
         latencyMs,
         usage,
+        stopReason: response.stop_reason,
         text,
         json: parsed,
         parseError,
@@ -110,6 +113,7 @@ export class AnthropicLlmClient implements LlmClient {
       text,
       json: parsed,
       parseError,
+      stopReason: response.stop_reason ?? undefined,
       model: this.model,
       usage,
       latencyMs,

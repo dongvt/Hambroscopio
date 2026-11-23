@@ -244,6 +244,7 @@ describe("planner retries", () => {
         text: "{ definitely not JSON",
         json: undefined,
         parseError: "Unexpected token",
+        stopReason: "max_tokens",
       },
       { text: JSON.stringify(validModelResponse), json: validModelResponse },
     ];
@@ -254,6 +255,7 @@ describe("planner retries", () => {
           text: response?.text ?? JSON.stringify(validModelResponse),
           json: response?.json ?? validModelResponse,
           parseError: response?.parseError,
+          stopReason: response?.stopReason,
           model: "test-model",
           usage: { inputTokens: 1, outputTokens: 1 },
           latencyMs: 1,
@@ -264,6 +266,60 @@ describe("planner retries", () => {
     const plan = await new Planner(llm).plan(baseInput);
 
     expect(plan.meals).toHaveLength(2);
+  });
+
+  it("includes the first validation failure in the correction attempt", async () => {
+    const invalidModelResponse = structuredClone(validModelResponse);
+    invalidModelResponse.meals[0]!.options[0]!.title = "Boiled Sand";
+    const requests: LlmGenerateRequest[] = [];
+    const llm: LlmClient = {
+      async generateJson(request) {
+        requests.push(request);
+        const json = requests.length === 1 ? invalidModelResponse : validModelResponse;
+        return {
+          text: JSON.stringify(json),
+          json,
+          model: "test-model",
+          usage: { inputTokens: 1, outputTokens: 1 },
+          latencyMs: 1,
+        };
+      },
+    };
+
+    await new Planner(llm).plan(baseInput);
+
+    expect(requests).toHaveLength(2);
+    expect(requests[1]?.messages.at(-1)?.content).toContain(
+      'option "Boiled Sand" is on the banned list',
+    );
+    expect(requests[1]?.messages.at(-2)?.role).toBe("assistant");
+  });
+
+  it("reports when malformed JSON was truncated at the output token limit", async () => {
+    const llm: LlmClient = {
+      async generateJson() {
+        return {
+          text: '{"status":"ok","meals":[',
+          json: undefined,
+          parseError: "Unexpected end of JSON input",
+          stopReason: "max_tokens",
+          model: "test-model",
+          usage: { inputTokens: 10, outputTokens: 15000 },
+          latencyMs: 30,
+        };
+      },
+    };
+
+    const error = await new Planner(llm).plan(baseInput).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(PlanningFailed);
+    if (!(error instanceof PlanningFailed)) throw error;
+    expect(error.attempts).toHaveLength(3);
+    expect(error.attempts[0]).toMatchObject({
+      stopReason: "max_tokens",
+      issueCategories: ["invalid_json"],
+      issues: [expect.stringContaining("output token limit")],
+    });
   });
 
   it("retains the model's explicit error and reason across retries", async () => {

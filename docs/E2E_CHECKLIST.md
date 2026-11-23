@@ -97,7 +97,9 @@ Use the private dev channel, dev sheet and dev calendar. Do not run this checkli
 - [ ] Discord posts a warning containing a correlation ID.
 - [ ] Logs contain the linked stack and operation details.
 - [ ] Interrupted `planning` or `posting` state is warned on startup.
-- [ ] `/plan` resumes or recreates only missing artifacts according to saved state.
+- [ ] `/plan` reruns planning when the interrupted status is `planning` and no complete meal plan was saved.
+- [ ] `/plan` resumes posting a fully saved plan without duplicating artifacts.
+- [ ] `/plan` clearly refuses an incomplete saved plan in `posting` state.
 - [ ] SQLite backup is taken before any manual repair.
 
 ## Restart

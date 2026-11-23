@@ -125,6 +125,19 @@ describe("weekly plan flow", () => {
     expect(deps.state.meals.listForWeek(weekId).every((meal) => meal.discordMessageId)).toBe(true);
     expect(deps.state.meals.listForWeek(weekId).every((meal) => meal.calendarEventId)).toBe(true);
   });
+
+  it("retries planning an interrupted week with no saved plan", async () => {
+    const { deps, db, planner } = makeDeps();
+    databases.push(db);
+    deps.state.weeks.setStatus("2026-11-16", "planning", deps.clock.now().toString());
+
+    const result = await runWeeklyPlan(deps);
+
+    expect(result).toEqual({ weekId: "2026-11-16", status: "complete" });
+    expect(planner.plan).toHaveBeenCalledTimes(1);
+    expect(deps.state.weeks.get("2026-11-16")?.status).toBe("complete");
+    expect(deps.state.meals.listForWeek("2026-11-16")).toHaveLength(21);
+  });
 });
 
 function makeDeps(): {
