@@ -124,6 +124,18 @@ export class DiscordJsGateway implements DiscordGateway {
     });
   }
 
+  async threadExists(threadId: string): Promise<boolean> {
+    try {
+      return await this.call("threadExists", threadId, async () => {
+        const channel = await this.client.channels.fetch(threadId);
+        return channel?.isThread() ?? false;
+      });
+    } catch (error) {
+      if (isDiscordNotFound(error)) return false;
+      throw error;
+    }
+  }
+
   async editMessage(ref: MessageRef, content: string): Promise<void> {
     await this.call("editMessage", ref.messageId, async () => {
       const channel = await this.client.channels.fetch(ref.channelId);
@@ -350,5 +362,5 @@ function findReaction(message: Message, emoji: string): MessageReaction | undefi
 
 function isDiscordNotFound(error: unknown): boolean {
   const value = error as { status?: unknown; code?: unknown };
-  return value?.status === 404 || value?.code === 10008;
+  return value?.status === 404 || value?.code === 10003 || value?.code === 10008;
 }

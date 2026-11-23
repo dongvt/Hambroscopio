@@ -48,6 +48,11 @@ export class FakeDiscordGateway implements DiscordGateway {
     return { threadId };
   }
 
+  async threadExists(threadId: string): Promise<boolean> {
+    this.record("threadExists", [threadId]);
+    return this.threads.has(threadId);
+  }
+
   async ensureThreadOpen(threadId: string): Promise<void> {
     this.record("ensureThreadOpen", [threadId]);
   }

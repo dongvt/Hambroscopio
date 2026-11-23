@@ -40,7 +40,7 @@ export interface WeeklyPlanOptions {
 
 export interface WeeklyPlanResult {
   weekId: WeekId;
-  status: "complete" | "skipped";
+  status: "complete" | "skipped" | "repaired";
 }
 
 const SLOT_ORDER: Slot[] = ["breakfast", "lunch", "dinner"];
@@ -66,8 +66,12 @@ export async function runWeeklyPlan(
     weekId = targetWeekId;
 
     const existing = deps.state.weeks.get(targetWeekId);
-    if (existing?.status === "complete") return { weekId: targetWeekId, status: "skipped" };
-    if (existing && existing.status !== "planning" && existing.status !== "posting") {
+    if (
+      existing &&
+      existing.status !== "complete" &&
+      existing.status !== "planning" &&
+      existing.status !== "posting"
+    ) {
       throw new AppError(
         "state",
         `Week ${targetWeekId} has unsupported status "${existing.status}".`,
@@ -108,10 +112,15 @@ export async function runWeeklyPlan(
       meals.length === expectedMeals.length &&
       [...expectedKeys].every((key) => plannedKeys.has(key));
 
+    if (existing?.status === "complete" && !hasCompleteSavedPlan) {
+      throw new AppError("state", `Complete week ${targetWeekId} has incomplete saved meal state.`);
+    }
     if (existing?.status === "posting" && !hasCompleteSavedPlan) {
       throw new AppError("state", `Posting week ${targetWeekId} has incomplete saved meal state.`);
     }
 
+    const wasComplete = existing?.status === "complete";
+    let repairedArtifacts = false;
     if (!hasCompleteSavedPlan) {
       saveWeek(deps, existing, targetWeekId, "planning");
       const planned = await deps.planner.plan(
@@ -145,6 +154,7 @@ export async function runWeeklyPlan(
 
     saveWeek(deps, deps.state.weeks.get(targetWeekId), targetWeekId, "posting");
     const intro = await ensureIntro(deps, targetWeekId);
+    if (intro.repaired) repairedArtifacts = true;
     await deps.discord.addReactions(intro.ref, [EMOJIS.reload]);
 
     for (const date of days) {
@@ -154,9 +164,28 @@ export async function runWeeklyPlan(
         .list(targetWeekId)
         .find((candidate) => candidate.date === dateString);
       let threadId = day?.threadId;
+      if (threadId && !(await deps.discord.threadExists(threadId))) {
+        deps.logger.warn(
+          { weekId: targetWeekId, date: dateString, threadId },
+          "saved Discord thread is missing; recreating it",
+        );
+        threadId = undefined;
+      }
+      if (threadId) await deps.discord.ensureThreadOpen(threadId);
       if (!threadId) {
         const found = await deps.discord.findThreadByName(deps.channelId, name);
         threadId = found ?? (await deps.discord.createThread(deps.channelId, name)).threadId;
+        if (day?.threadId !== threadId) {
+          for (const meal of meals.filter((candidate) => candidate.date === dateString)) {
+            const current = deps.state.meals.get(meal.id);
+            if (current?.discordMessageId) {
+              current.discordMessageId = null;
+              current.updatedAt = deps.clock.now().toString();
+              deps.state.meals.upsert(current);
+            }
+          }
+          repairedArtifacts = true;
+        }
         deps.state.days.upsert({ weekId: targetWeekId, date: dateString, threadId });
       }
 
@@ -168,18 +197,38 @@ export async function runWeeklyPlan(
           options: optionsForMeal,
           status: "planned",
         });
-        const ref =
-          (current.discordMessageId
-            ? { channelId: threadId, messageId: current.discordMessageId }
-            : await deps.discord.findMessageByContent(threadId, content)) ??
-          (await deps.discord.sendMessage(threadId, content));
-        if (!current.discordMessageId) {
+        let ref: MessageRef | null = current.discordMessageId
+          ? { channelId: threadId, messageId: current.discordMessageId }
+          : null;
+        if (ref && !(await deps.discord.fetchMessage(ref))) {
+          deps.logger.warn(
+            { mealId: current.id, messageId: ref.messageId },
+            "saved Discord meal message is missing; recreating it",
+          );
+          current.discordMessageId = null;
+          ref = null;
+          repairedArtifacts = true;
+        }
+        ref ??= await deps.discord.findMessageByContent(threadId, content);
+        if (!ref) {
+          ref = await deps.discord.sendMessage(threadId, content);
+          repairedArtifacts = true;
+        }
+        if (!current.discordMessageId || current.discordMessageId !== ref.messageId) {
           current.discordMessageId = ref.messageId;
           current.updatedAt = deps.clock.now().toString();
           deps.state.meals.upsert(current);
         }
         await deps.discord.addReactions(ref, mealReactions(current.slot, optionsForMeal.length));
 
+        if (current.calendarEventId && !(await deps.calendar.getEvent(current.calendarEventId))) {
+          deps.logger.warn(
+            { mealId: current.id, eventId: current.calendarEventId },
+            "saved Calendar event is missing; looking for or recreating it",
+          );
+          current.calendarEventId = null;
+          repairedArtifacts = true;
+        }
         if (!current.calendarEventId) {
           const key = mealKey(current);
           const existingEvent = await deps.calendar.findByMealKey(key);
@@ -190,13 +239,17 @@ export async function runWeeklyPlan(
           current.calendarEventId = eventId;
           current.updatedAt = deps.clock.now().toString();
           deps.state.meals.upsert(current);
+          if (wasComplete || !existingEvent) repairedArtifacts = true;
         }
       }
     }
 
     saveWeek(deps, deps.state.weeks.get(targetWeekId), targetWeekId, "complete");
     deps.logger.info({ weekId: targetWeekId, mealCount: meals.length }, "weekly plan completed");
-    return { weekId: targetWeekId, status: "complete" };
+    return {
+      weekId: targetWeekId,
+      status: wasComplete ? (repairedArtifacts ? "repaired" : "skipped") : "complete",
+    };
   } catch (error) {
     deps.logger.error({ err: error, weekId }, "weekly plan failed");
     try {
@@ -280,19 +333,24 @@ function assertPlanComplete(result: PlannerResult, expected: PlannerInput["meals
   }
 }
 
-async function ensureIntro(deps: WeeklyPlanDeps, weekId: WeekId): Promise<{ ref: MessageRef }> {
+async function ensureIntro(
+  deps: WeeklyPlanDeps,
+  weekId: WeekId,
+): Promise<{ ref: MessageRef; repaired: boolean }> {
   const week = deps.state.weeks.get(weekId);
   if (week?.introMessageId) {
-    return {
-      ref: { channelId: week.channelId ?? deps.channelId, messageId: week.introMessageId },
-    };
+    const ref = { channelId: week.channelId ?? deps.channelId, messageId: week.introMessageId };
+    if (await deps.discord.fetchMessage(ref)) return { ref, repaired: false };
+    deps.logger.warn(
+      { weekId, messageId: week.introMessageId },
+      "saved Discord intro message is missing; recreating it",
+    );
   }
   const content = `Hey, these are the suggested meals for the week of ${weekId}.`;
-  const ref =
-    (await deps.discord.findMessageByContent(deps.channelId, content)) ??
-    (await deps.discord.sendMessage(deps.channelId, content));
+  const found = await deps.discord.findMessageByContent(deps.channelId, content);
+  const ref = found ?? (await deps.discord.sendMessage(deps.channelId, content));
   saveWeek(deps, week, weekId, "posting", ref.messageId);
-  return { ref };
+  return { ref, repaired: !found };
 }
 
 function saveWeek(

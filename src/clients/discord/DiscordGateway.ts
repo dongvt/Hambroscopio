@@ -27,6 +27,7 @@ export interface DiscordGateway {
   sendMessage(channelId: string, content: string): Promise<MessageRef>;
   findMessageByContent(channelId: string, content: string): Promise<MessageRef | null>;
   createThread(channelId: string, name: string): Promise<{ threadId: string }>;
+  threadExists(threadId: string): Promise<boolean>;
   ensureThreadOpen(threadId: string): Promise<void>;
   editMessage(ref: MessageRef, content: string): Promise<void>;
   fetchMessage(ref: MessageRef): Promise<{ content: string; reactions: ReactionSummary[] } | null>;
