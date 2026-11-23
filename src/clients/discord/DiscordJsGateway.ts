@@ -116,7 +116,7 @@ export class DiscordJsGateway implements DiscordGateway {
 
   async ensureThreadOpen(threadId: string): Promise<void> {
     await this.call("ensureThreadOpen", threadId, async () => {
-      const channel = await this.client.channels.fetch(threadId);
+      const channel = await this.client.channels.fetch(threadId, { force: true });
       if (!channel || !channel.isThread()) {
         throw new AppError("not_found", `Discord thread not found: ${threadId}`);
       }
@@ -127,7 +127,7 @@ export class DiscordJsGateway implements DiscordGateway {
   async threadExists(threadId: string): Promise<boolean> {
     try {
       return await this.call("threadExists", threadId, async () => {
-        const channel = await this.client.channels.fetch(threadId);
+        const channel = await this.client.channels.fetch(threadId, { force: true });
         return channel?.isThread() ?? false;
       });
     } catch (error) {
