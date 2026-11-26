@@ -17,7 +17,7 @@ describe("calendar render", () => {
       options: [{ title: "Chicken Bowl" }, { title: "Bean Bowl" }, { title: "Taco Salad" }],
       status: "planned",
     });
-    expect(planned).toBe("1️⃣ Chicken Bowl\n2️⃣ Bean Bowl\n3️⃣ Taco Salad\nStatus: Planned");
+    expect(planned).toBe("Lunch:\n1️⃣ Chicken Bowl\n2️⃣ Bean Bowl\n3️⃣ Taco Salad\nStatus: Planned");
 
     const cooked = renderMealMessage({
       slot: "lunch",
@@ -25,7 +25,21 @@ describe("calendar render", () => {
       chosenIndex: 1,
       status: "cooked",
     });
-    expect(cooked).toBe("Bean Bowl\nStatus: Cooked");
+    expect(cooked).toBe("Lunch:\nBean Bowl\nStatus: Cooked");
+  });
+
+  it.each([
+    ["breakfast", "Breakfast"],
+    ["lunch", "Lunch"],
+    ["dinner", "Dinner"],
+  ] as const)("labels %s messages", (slot, label) => {
+    expect(
+      renderMealMessage({
+        slot,
+        options: [{ title: "Meal title" }],
+        status: "planned",
+      }),
+    ).toBe(`${label}:\nMeal title\nStatus: Planned`);
   });
 
   it("formats lunch summaries and descriptions", () => {

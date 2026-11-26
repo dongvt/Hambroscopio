@@ -36,7 +36,8 @@ export function renderMealMessage(input: RenderMealMessageInput): string {
           .map((option, index) => `${optionEmoji(index) ?? `${index + 1}.`} ${option.title}`)
           .join("\n")
       : (input.options[input.chosenIndex ?? 0]?.title ?? input.options[0]?.title ?? "Meal");
-  return `${titles}\nStatus: ${STATUS_TEXT[input.status]}`;
+  const mealType = `${input.slot[0]?.toUpperCase()}${input.slot.slice(1)}`;
+  return `${mealType}:\n${titles}\nStatus: ${STATUS_TEXT[input.status]}`;
 }
 
 export function renderMealSummary(input: RenderMealEventInput): string {
