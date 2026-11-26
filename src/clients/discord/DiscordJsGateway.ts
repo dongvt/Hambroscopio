@@ -150,7 +150,7 @@ export class DiscordJsGateway implements DiscordGateway {
   ): Promise<{ content: string; reactions: ReactionSummary[] } | null> {
     try {
       const message = await this.call("fetchMessage", ref.messageId, () =>
-        this.fetchMessageObject(ref),
+        this.fetchMessageObject(ref, true),
       );
       return {
         content: message.content,
@@ -303,12 +303,14 @@ export class DiscordJsGateway implements DiscordGateway {
     return channel;
   }
 
-  private async fetchMessageObject(ref: MessageRef): Promise<Message> {
+  private async fetchMessageObject(ref: MessageRef, force = false): Promise<Message> {
     const channel = await this.fetchTextChannel(ref.channelId);
     if (!("messages" in channel)) {
       throw new AppError("not_found", `Discord message channel not found: ${ref.channelId}`);
     }
-    const message = await channel.messages.fetch(ref.messageId);
+    const message = await channel.messages.fetch(
+      force ? { message: ref.messageId, force: true } : ref.messageId,
+    );
     return message.partial ? message.fetch() : message;
   }
 

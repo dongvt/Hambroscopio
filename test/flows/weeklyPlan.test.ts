@@ -166,6 +166,55 @@ describe("weekly plan flow", () => {
     );
     expect(deps.state.weeks.get("2026-11-16")?.status).toBe("complete");
   });
+
+  it("recreates only a missing meal message and saves its new ID", async () => {
+    const { deps, db, planner } = makeDeps();
+    databases.push(db);
+    const weekId = "2026-11-16";
+    await runWeeklyPlan(deps);
+
+    const meals = deps.state.meals.listForWeek(weekId);
+    const missingMeal = meals.find((meal) => meal.slot === "breakfast");
+    if (!missingMeal) throw new Error("Expected breakfast meal");
+    const threadId = deps.state.days
+      .list(weekId)
+      .find((day) => day.date === missingMeal.date)?.threadId;
+    if (!threadId || !missingMeal.discordMessageId) {
+      throw new Error("Expected saved thread and breakfast message IDs");
+    }
+
+    const originalMessageIds = new Map(
+      meals.map((meal) => [meal.id, meal.discordMessageId] as const),
+    );
+    const unchangedMeal = meals.find(
+      (meal) => meal.date === missingMeal.date && meal.slot === "dinner",
+    );
+    if (!unchangedMeal?.discordMessageId) throw new Error("Expected saved dinner message ID");
+    const unchangedKey = `${threadId}:${unchangedMeal.discordMessageId}`;
+    const unchangedMessage = deps.discord.messages.get(unchangedKey);
+    if (!unchangedMessage) throw new Error("Expected existing dinner message");
+    unchangedMessage.content = unchangedMessage.content.replace(/^Dinner:\n/, "");
+    const originalMessageKey = `${threadId}:${missingMeal.discordMessageId}`;
+    deps.discord.messages.delete(originalMessageKey);
+
+    const result = await runWeeklyPlan(deps);
+
+    const repairedMeal = deps.state.meals.get(missingMeal.id);
+    expect(result).toEqual({ weekId, status: "repaired" });
+    expect(planner.plan).toHaveBeenCalledTimes(1);
+    expect(repairedMeal?.discordMessageId).not.toBe(missingMeal.discordMessageId);
+    expect(
+      deps.discord.messages.get(`${threadId}:${repairedMeal?.discordMessageId}`)?.content,
+    ).toBe(`Breakfast:\nbreakfast ${missingMeal.date} Option 1\nStatus: Planned`);
+    expect(deps.discord.messages.get(unchangedKey)?.content).toBe(
+      `dinner ${missingMeal.date} Option 1\nStatus: Planned`,
+    );
+    for (const meal of meals.filter((candidate) => candidate.id !== missingMeal.id)) {
+      expect(deps.state.meals.get(meal.id)?.discordMessageId).toBe(originalMessageIds.get(meal.id));
+    }
+    expect(deps.discord.calls.filter((call) => call.operation === "editMessage")).toHaveLength(0);
+    expect(deps.discord.calls.filter((call) => call.operation === "sendMessage")).toHaveLength(23);
+  });
 });
 
 function makeDeps(): {
